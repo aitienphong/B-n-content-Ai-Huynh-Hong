@@ -1,7 +1,9 @@
-
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { GeminiService } from './services/geminiService';
 import { VideoConfig, VideoMode, VisualStyle, PromptRow } from './types';
+import { PaymentModal } from './components/PaymentModal';
+import { TrialModal } from './components/TrialModal';
+import { AdminDashboard } from './components/AdminDashboard';
 
 // Helper components
 const Button: React.FC<{ 
@@ -9,7 +11,7 @@ const Button: React.FC<{
   disabled?: boolean; 
   className?: string; 
   loading?: boolean;
-  variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'outline' | 'ghost' | 'info' | 'gemini' | 'neon-yellow';
+  variant?: 'primary' | 'secondary' | 'danger' | 'success' | 'outline' | 'ghost' | 'info' | 'gemini' | 'neon-yellow' | 'blue';
   children: React.ReactNode;
 }> = ({ onClick, disabled, className = '', loading, variant = 'primary', children }) => {
   const gradientStyles: Record<string, string> = {
@@ -21,7 +23,8 @@ const Button: React.FC<{
     outline: "from-emerald-800 via-green-700 to-teal-800",
     secondary: "from-slate-800 to-slate-950",
     danger: "from-rose-600 via-red-600 to-pink-700",
-    ghost: "from-emerald-700 to-teal-800"
+    ghost: "from-emerald-700 to-teal-800",
+    blue: "from-blue-700 via-indigo-600 to-sky-700"
   };
 
   const frameStyles: Record<string, string> = {
@@ -33,7 +36,8 @@ const Button: React.FC<{
     outline: "bg-slate-200/90 border-slate-300 shadow-[inset_3px_3px_6px_rgba(15,23,42,0.22),inset_-3px_-3px_6px_rgba(255,255,255,1)]",
     secondary: "bg-slate-200 border-slate-300 shadow-[inset_3px_3px_6px_rgba(15,23,42,0.22),inset_-3px_-3px_6px_rgba(255,255,255,1)]",
     danger: "bg-rose-100/90 border-rose-300 shadow-[inset_3px_3px_6px_rgba(225,29,72,0.24),inset_-3px_-3px_6px_rgba(255,255,255,1)]",
-    ghost: "bg-transparent border-transparent shadow-none"
+    ghost: "bg-transparent border-transparent shadow-none",
+    blue: "bg-blue-100/90 border-blue-300 shadow-[inset_3px_3px_6px_rgba(37,99,235,0.24),inset_-3px_-3px_6px_rgba(255,255,255,1)]"
   };
 
   return (
@@ -68,66 +72,28 @@ const Card: React.FC<{ title: string; children: React.ReactNode; className?: str
   </div>
 );
 
-const StepIndicator: React.FC<{ currentStep: number }> = ({ currentStep }) => {
-  const steps = ["Hệ thống", "Nội dung", "Cấu hình", "Dàn ý", "Hoàn tất"];
-  return (
-    <div className="flex items-center justify-between mb-12 max-w-4xl mx-auto px-4">
-      {steps.map((step, idx) => (
-        <React.Fragment key={idx}>
-          <div className="flex flex-col items-center relative z-10">
-            {/* Khung chìm ngoài siêu rõ nét */}
-            <div className={`p-2 rounded-full transition-all duration-500 border ${
-              idx <= currentStep 
-                ? "bg-emerald-100/90 shadow-[inset_3px_3px_7px_rgba(5,150,105,0.28),inset_-3px_-3px_6px_rgba(255,255,255,1)] border-emerald-300" 
-                : "bg-slate-200 shadow-[inset_3px_3px_6px_rgba(15,23,42,0.22),inset_-3px_-3px_6px_rgba(255,255,255,1)] border-slate-300"
-            }`}>
-              {/* Nốt nổi trong 3D siêu rõ nét */}
-              <div className={`w-12 h-12 rounded-full flex items-center justify-center font-black transition-all duration-500 ${
-                idx <= currentStep 
-                  ? "bg-gradient-to-b from-white to-slate-50 shadow-[5px_7px_16px_rgba(5,150,105,0.3),-3px_-3px_8px_rgba(255,255,255,1)] border-2 border-emerald-600 scale-110" 
-                  : "bg-gradient-to-b from-white to-slate-100 shadow-[3px_4px_8px_rgba(15,23,42,0.14),-2px_-2px_5px_rgba(255,255,255,1)] border border-slate-300"
-              }`}>
-                <span className={`text-base font-black ${
-                  idx <= currentStep 
-                    ? "bg-gradient-to-r from-emerald-700 via-green-600 to-teal-700 bg-clip-text text-transparent drop-shadow-sm" 
-                    : "text-slate-400"
-                }`}>
-                  {idx < currentStep ? <i className="fas fa-check text-sm text-emerald-600"></i> : idx + 1}
-                </span>
-              </div>
-            </div>
-            {/* Chữ trên nốt màu gradient xanh lá */}
-            <span className={`text-xs uppercase tracking-wider mt-3 font-black ${
-              idx <= currentStep 
-                ? "bg-gradient-to-r from-emerald-700 via-green-600 to-teal-700 bg-clip-text text-transparent drop-shadow-xs" 
-                : "text-slate-400"
-            }`}>
-              {step}
-            </span>
-          </div>
-          {idx < steps.length - 1 && (
-            <div className="flex-1 h-3 mx-2 -mt-7 bg-slate-200 rounded-full shadow-[inset_2px_2px_4px_rgba(15,23,42,0.22),inset_-2px_-2px_4px_rgba(255,255,255,1)] border border-slate-300/80 overflow-hidden">
-              <div 
-                className={`h-full transition-all duration-700 rounded-full ${
-                  idx < currentStep 
-                    ? "bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 w-full shadow-[0_1px_4px_rgba(5,150,105,0.5)]" 
-                    : "w-0"
-                }`}
-              ></div>
-            </div>
-          )}
-        </React.Fragment>
-      ))}
-    </div>
-  );
-};
-
 export default function App() {
-  const [step, setStep] = useState(0);
+  const [step, setStep] = useState(1);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [isSystemReady, setIsSystemReady] = useState(false);
+  const [isSystemReady, setIsSystemReady] = useState(true);
   
+  // Modals & Subscription States
+  const [isPaymentOpen, setIsPaymentOpen] = useState(false);
+  const [isTrialOpen, setIsTrialOpen] = useState(false);
+  const [isAdminOpen, setIsAdminOpen] = useState(false);
+  
+  const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
+  const [subscription, setSubscription] = useState<any>(null);
+  const [trialNotice, setTrialNotice] = useState<string | null>(null);
+  const [paymentConfig, setPaymentConfig] = useState<any>({
+    trial_active: true,
+    trial_hours: 24,
+    trial_title: 'Dùng thử miễn phí',
+    trial_description: 'Trải nghiệm 24 giờ sử dụng trọn bộ tính năng video AI.',
+    trial_app_redirect_url: ''
+  });
+
   const [avatarUrl, setAvatarUrl] = useState<string>(() => {
     return localStorage.getItem('huynh_hong_avatar') || '/huynh-hong-avatar.svg';
   });
@@ -173,33 +139,119 @@ export default function App() {
 
   const gemini = useMemo(() => new GeminiService(), []);
 
-  useEffect(() => {
-    if (step === 0) {
-      const init = async () => {
-        setLoading(true);
-        try {
-          await gemini.verifyKey();
-          setIsSystemReady(true);
-          setTimeout(() => setStep(1), 500);
-        } catch (err: any) {
-          setError(err.message === 'QUOTA_EXHAUSTED' ? "Hệ thống quá tải. Thử lại sau." : "Lỗi API.");
-        } finally {
-          setLoading(false);
-        }
-      };
-      init();
+  // Check user subscription status from backend
+  const checkSubscription = useCallback(async () => {
+    const sessionStr = localStorage.getItem('app_user_session');
+    if (!sessionStr) {
+      setSubscription(null);
+      setHasActiveSubscription(false);
+      return;
     }
-  }, [step, gemini]);
-
-  const handleApiError = useCallback((err: any) => {
-    if (err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED')) {
-      setError("Cảnh báo: Hết Quota API!");
-    } else {
-      setError(err.message || "Đã xảy ra lỗi.");
+    try {
+      const session = JSON.parse(sessionStr);
+      const identifier = session.email || session.phone;
+      if (!identifier) {
+        setHasActiveSubscription(false);
+        return;
+      }
+      const res = await fetch(`/api/subscription/check?email=${encodeURIComponent(identifier)}`);
+      const data = await res.json();
+      if (data.hasAccess && data.subscription) {
+        setSubscription(data.subscription);
+        setHasActiveSubscription(true);
+      } else {
+        setSubscription(null);
+        setHasActiveSubscription(false);
+      }
+    } catch (err) {
+      console.warn('Subscription check error:', err);
     }
   }, []);
 
+  // Fetch payment configuration & check subscription on mount
+  useEffect(() => {
+    fetch('/api/payment-config')
+      .then(res => res.json())
+      .then(data => {
+        if (data.success) {
+          setPaymentConfig(data);
+        }
+      })
+      .catch(err => console.warn('Payment config fetch error:', err));
+
+    checkSubscription();
+  }, [checkSubscription]);
+
+  // Check for trial activation token from email link
+  useEffect(() => {
+    const urlParams = new URLSearchParams(window.location.search);
+    const trialToken = urlParams.get('trial_token');
+    if (trialToken) {
+      fetch('/api/trial/activate-by-token', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          token: trialToken,
+          device_id: navigator.userAgent
+        })
+      })
+        .then(res => res.json())
+        .then(data => {
+          if (data.success && data.subscription) {
+            const sub = data.subscription;
+            setSubscription(sub);
+            setHasActiveSubscription(true);
+            localStorage.setItem('app_user_session', JSON.stringify({
+              name: sub.customer_name,
+              email: sub.customer_email,
+              phone: sub.customer_phone
+            }));
+            const hours = paymentConfig.trial_hours || 24;
+            setTrialNotice(`🎉 Kích hoạt dùng thử thành công từ email! Chào mừng ${sub.customer_name || ''}, bạn có ${hours} giờ sử dụng trọn bộ tính năng AI.`);
+            setError(null);
+
+            // Clean URL query parameters
+            window.history.replaceState({}, document.title, window.location.pathname);
+
+            // Scroll to workspace
+            setTimeout(() => {
+              const el = document.getElementById('main-workspace') || document.querySelector('main');
+              if (el) el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+            }, 300);
+          } else {
+            setError(data.error || 'Không thể kích hoạt dùng thử. Liên kết có thể đã hết hạn.');
+          }
+        })
+        .catch(err => {
+          console.warn('Activate trial error:', err);
+          setError('Lỗi kích hoạt liên kết dùng thử: ' + err.message);
+        });
+    }
+  }, [paymentConfig.trial_hours]);
+
+  const handleApiError = useCallback((err: any) => {
+    if (err.message?.includes('SUBSCRIPTION_REQUIRED')) {
+      setError("Bạn cần mua gói hoặc đăng ký dùng thử để sử dụng công cụ này.");
+      setIsPaymentOpen(true);
+    } else if (err.message?.includes('429') || err.message?.includes('RESOURCE_EXHAUSTED') || err.message === 'QUOTA_EXHAUSTED') {
+      setError("Hệ thống AI đang bận hoặc vượt quá lưu lượng, vui lòng thử lại sau giây lát.");
+    } else {
+      setError(err.message || "Đã xảy ra lỗi kết nối AI.");
+    }
+  }, []);
+
+  // Gatekeeper: Check active subscription before calling AI features
+  const requireSubscription = (): boolean => {
+    if (!hasActiveSubscription) {
+      setError("Bạn cần mua gói hoặc đăng ký dùng thử để sử dụng công cụ này.");
+      setIsPaymentOpen(true);
+      return false;
+    }
+    return true;
+  };
+
   const handleNextFromStep1 = async () => {
+    if (!requireSubscription()) return;
     setLoading(true);
     setError(null);
     try {
@@ -208,6 +260,7 @@ export default function App() {
       setStep(2);
     } catch (err) {
       handleApiError(err);
+      if (!hasActiveSubscription) return;
       setStep(2); 
     } finally {
       setLoading(false);
@@ -215,6 +268,7 @@ export default function App() {
   };
 
   const regenerateTopic = async () => {
+    if (!requireSubscription()) return;
     setLoading(true);
     try {
       const topic = await gemini.generateTopic(config.summary, config.styleAnalysis, config.mode);
@@ -225,6 +279,7 @@ export default function App() {
   };
 
   const regenerateBackground = async () => {
+    if (!requireSubscription()) return;
     setLoading(true);
     try {
       const bg = await gemini.generateBackground(config.topic, config.visualStyle, config.styleAnalysis);
@@ -234,6 +289,7 @@ export default function App() {
   };
 
   const handleGenerateTimelineFromStep2 = async () => {
+    if (!requireSubscription()) return;
     setLoading(true);
     setError(null);
     try {
@@ -243,6 +299,7 @@ export default function App() {
       setStep(3);
     } catch (err) {
       handleApiError(err);
+      if (!hasActiveSubscription) return;
       setStep(3);
     } finally {
       setLoading(false);
@@ -250,6 +307,7 @@ export default function App() {
   };
 
   const generateTimelineAgain = async () => {
+    if (!requireSubscription()) return;
     setLoading(true);
     try {
       const durationSecActual = Math.ceil(config.durationMin * 60 / 8) * 8;
@@ -278,6 +336,7 @@ export default function App() {
   };
 
   const generatePrompts = async () => {
+    if (!requireSubscription()) return;
     setLoading(true);
     try {
       const durationSecActual = Math.ceil(config.durationMin * 60 / 8) * 8;
@@ -324,57 +383,156 @@ export default function App() {
 
   return (
     <div className="min-h-screen pb-20 bg-[#f8fafc] text-slate-800 font-['Plus_Jakarta_Sans',sans-serif]">
-      <header className="bg-white/90 backdrop-blur-md border-b border-slate-200/90 py-4 px-6 sticky top-0 z-50 shadow-sm">
-        <div className="max-w-7xl mx-auto flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="relative group">
-              <div className="w-12 h-12 rounded-full overflow-hidden shadow-md border-2 border-emerald-500 bg-white ring-2 ring-emerald-500/20 flex items-center justify-center">
-                <img 
-                  src={avatarUrl} 
-                  alt="Huynh Hong Avatar"
-                  className="w-full h-full object-cover"
-                  onError={() => {
-                    if (avatarUrl !== "/huynh-hong-avatar.svg") {
-                      setAvatarUrl("/huynh-hong-avatar.svg");
-                    }
-                  }}
-                />
+      
+      {/* HEADER WITH BLUE PURCHASE BUTTON & ACTIONS */}
+      <header className="bg-white/95 backdrop-blur-md border-b border-slate-200/90 py-3.5 px-4 sm:px-6 sticky top-0 z-50 shadow-xs">
+        <div className="max-w-7xl mx-auto flex flex-col md:flex-row items-center justify-between gap-3">
+          
+          {/* Left: Brand Identity */}
+          <div className="flex items-center gap-3 w-full md:w-auto justify-between md:justify-start">
+            <div className="flex items-center gap-3">
+              <div className="relative group shrink-0">
+                <div className="w-11 h-11 rounded-full overflow-hidden shadow-md border-2 border-emerald-500 bg-white ring-2 ring-emerald-500/20 flex items-center justify-center">
+                  <img 
+                    src={avatarUrl} 
+                    alt="Huynh Hong Avatar"
+                    className="w-full h-full object-cover"
+                    onError={() => {
+                      if (avatarUrl !== "/huynh-hong-avatar.svg") {
+                        setAvatarUrl("/huynh-hong-avatar.svg");
+                      }
+                    }}
+                  />
+                </div>
+                <label 
+                  title="Thay đổi ảnh đại diện Huỳnh Hồng" 
+                  className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-white text-xs"
+                >
+                  <i className="fas fa-camera"></i>
+                  <input 
+                    type="file" 
+                    accept="image/*" 
+                    className="hidden" 
+                    onChange={handleAvatarUpload}
+                  />
+                </label>
               </div>
-              <label 
-                title="Thay đổi ảnh đại diện Huỳnh Hồng" 
-                className="absolute inset-0 rounded-full bg-black/60 opacity-0 group-hover:opacity-100 flex items-center justify-center cursor-pointer transition-opacity text-white text-xs"
-              >
-                <i className="fas fa-camera"></i>
-                <input 
-                  type="file" 
-                  accept="image/*" 
-                  className="hidden" 
-                  onChange={handleAvatarUpload}
-                />
-              </label>
+              <div>
+                <h1 className="text-base sm:text-xl font-black tracking-tight uppercase bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 bg-clip-text text-transparent drop-shadow-xs leading-snug">
+                  VIDEO AI BÁN CONTENT - HUYNH HONG
+                </h1>
+                <p className="text-[10px] text-slate-500 font-bold uppercase tracking-wider hidden sm:block">
+                  Công Nghệ Phân Tích & Sản Xuất Video AI Đỉnh Cao
+                </p>
+              </div>
             </div>
-            <div>
-              <h1 className="text-lg sm:text-2xl font-black tracking-tight uppercase bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 bg-clip-text text-transparent drop-shadow-sm">
-                VIDEO AI BÁN CONTENT - HUYNH HONG
-              </h1>
+
+            {/* Mobile quick indicators */}
+            <div className="md:hidden flex items-center gap-1.5">
+              <button
+                type="button"
+                onClick={() => setIsAdminOpen(true)}
+                className="w-8 h-8 rounded-xl bg-slate-100 text-slate-600 hover:text-slate-900 flex items-center justify-center text-xs"
+                title="Quản trị viên"
+              >
+                <i className="fas fa-shield-alt"></i>
+              </button>
             </div>
           </div>
-          {isSystemReady && (
-            <div className="text-[10px] font-bold text-emerald-700 bg-emerald-50 px-3 py-1 rounded-full border border-emerald-200/80 flex items-center gap-2 shadow-sm">
-              <div className="w-1.5 h-1.5 bg-emerald-500 rounded-full animate-pulse"></div>
-              SYSTEM ACTIVE
-            </div>
-          )}
+
+          {/* Right: Actions & Payment Buttons */}
+          <div className="flex flex-wrap items-center justify-end gap-2.5 w-full md:w-auto">
+            
+            {/* Status Badges */}
+            {hasActiveSubscription ? (
+              <div className="flex items-center gap-2">
+                {subscription?.subscription_type === 'paid' ? (
+                  <div className="text-[11px] font-black text-emerald-800 bg-emerald-50 px-3 py-1.5 rounded-xl border border-emerald-300 flex items-center gap-1.5 shadow-xs">
+                    <i className="fas fa-crown text-amber-500"></i>
+                    <span>{subscription?.plan_name || 'Gói Vĩnh Viễn'}</span>
+                  </div>
+                ) : (
+                  <div className="text-[11px] font-black text-indigo-800 bg-indigo-50 px-3 py-1.5 rounded-xl border border-indigo-200 flex items-center gap-1.5 shadow-xs">
+                    <i className="fas fa-clock text-indigo-500"></i>
+                    <span>Dùng thử (~{subscription?.remainingHours || 24}h)</span>
+                  </div>
+                )}
+              </div>
+            ) : (
+              <div className="text-[11px] font-bold text-amber-800 bg-amber-50 px-3 py-1.5 rounded-xl border border-amber-200 flex items-center gap-1.5 shadow-xs">
+                <div className="w-2 h-2 rounded-full bg-amber-500 animate-pulse"></div>
+                <span>Chưa kích hoạt gói</span>
+              </div>
+            )}
+
+            {/* Dùng thử miễn phí Button (If no active paid sub and trial is active) */}
+            {(!hasActiveSubscription || subscription?.subscription_type === 'trial') && paymentConfig.trial_active && (
+              <button
+                type="button"
+                onClick={() => setIsTrialOpen(true)}
+                className="px-3.5 py-2 rounded-xl bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-black text-xs flex items-center gap-1.5 transition-all shadow-sm hover:shadow-md active:scale-95"
+              >
+                <i className="fas fa-gift text-xs"></i>
+                <span>Dùng thử</span>
+              </button>
+            )}
+
+            {/* Mua gói / Nâng cấp Button (Tone xanh dương chủ đạo theo yêu cầu) */}
+            <button
+              type="button"
+              onClick={() => setIsPaymentOpen(true)}
+              className="px-4 py-2 rounded-xl bg-gradient-to-r from-blue-600 via-indigo-600 to-blue-700 hover:from-blue-700 hover:via-indigo-700 hover:to-blue-800 text-white font-black text-xs flex items-center gap-2 transition-all shadow-md hover:shadow-lg active:scale-95 ring-2 ring-blue-500/20"
+            >
+              <i className="fas fa-gem text-amber-300 text-xs animate-bounce"></i>
+              <span>{hasActiveSubscription && subscription?.subscription_type === 'paid' ? 'Gia hạn gói' : 'Mua Gói / Nâng Cấp'}</span>
+            </button>
+
+            {/* Admin Dashboard Button (Desktop) */}
+            <button
+              type="button"
+              onClick={() => setIsAdminOpen(true)}
+              className="hidden md:flex w-9 h-9 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-600 hover:text-slate-900 items-center justify-center text-xs transition-colors border border-slate-200"
+              title="Mở Quản trị viên SePay"
+            >
+              <i className="fas fa-shield-alt"></i>
+            </button>
+
+          </div>
         </div>
       </header>
 
-      <main className="max-w-5xl mx-auto mt-8 px-4">
-        {/* StepIndicator đã được ẩn hoàn toàn theo hình ảnh người dùng yêu cầu */}
+      {/* Main Container */}
+      <main id="main-workspace" className="max-w-5xl mx-auto mt-6 px-4">
 
+        {/* Trial Success / Active Banner */}
+        {trialNotice && (
+          <div className="bg-emerald-50 border-2 border-emerald-300 text-emerald-900 px-5 py-3.5 rounded-2xl mb-6 flex items-center justify-between shadow-sm animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <i className="fas fa-check-circle text-emerald-600 text-lg"></i>
+              <span className="text-xs sm:text-sm font-bold">{trialNotice}</span>
+            </div>
+            <button 
+              onClick={() => setTrialNotice(null)} 
+              className="text-emerald-500 hover:text-emerald-800 text-sm font-bold ml-4 cursor-pointer"
+            >
+              <i className="fas fa-times"></i>
+            </button>
+          </div>
+        )}
+
+        {/* Global Error Banner */}
         {error && (
-          <div className="bg-rose-50 border border-rose-200 text-rose-800 px-5 py-3.5 rounded-2xl mb-8 flex items-center gap-3 shadow-sm">
-            <i className="fas fa-exclamation-triangle text-rose-500"></i>
-            <span className="text-sm font-semibold">{error}</span>
+          <div className="bg-rose-50 border border-rose-200 text-rose-800 px-5 py-3.5 rounded-2xl mb-6 flex items-center justify-between shadow-sm animate-in fade-in">
+            <div className="flex items-center gap-3">
+              <i className="fas fa-exclamation-triangle text-rose-500 text-base"></i>
+              <span className="text-sm font-semibold">{error}</span>
+            </div>
+            <button 
+              onClick={() => setError(null)} 
+              className="text-rose-400 hover:text-rose-700 text-sm font-bold ml-4"
+            >
+              <i className="fas fa-times"></i>
+            </button>
           </div>
         )}
 
@@ -481,7 +639,13 @@ export default function App() {
             </div>
 
             <div className="flex justify-end">
-              <Button onClick={handleNextFromStep1} disabled={!config.summary || !config.styleAnalysis || loading} loading={loading} className="w-64 shadow-md">
+              <Button 
+                onClick={handleNextFromStep1} 
+                disabled={!config.summary || !config.styleAnalysis || loading} 
+                loading={loading} 
+                className="w-64 shadow-md"
+              >
+                {!hasActiveSubscription && <i className="fas fa-lock mr-1.5 text-amber-500"></i>}
                 Phân tích & Tiếp tục <i className="fas fa-arrow-right ml-2 text-xs"></i>
               </Button>
             </div>
@@ -511,6 +675,7 @@ export default function App() {
                   <div className="flex justify-between items-center mb-3 px-1">
                     <label className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Chủ đề mới muốn làm</label>
                     <Button variant="outline" onClick={regenerateTopic} loading={loading} className="py-1 px-4 text-[10px] rounded-lg h-8">
+                      {!hasActiveSubscription && <i className="fas fa-lock mr-1 text-amber-500"></i>}
                       <i className="fas fa-wand-sparkles mr-1"></i> AI Tạo chủ đề khác
                     </Button>
                   </div>
@@ -526,6 +691,7 @@ export default function App() {
                   <div className="flex justify-between items-center mb-3 px-1">
                     <label className="text-[11px] font-black text-slate-600 uppercase tracking-widest">Bối cảnh / Nền tảng (Kế thừa phong cách nghệ thuật)</label>
                     <Button variant="outline" onClick={regenerateBackground} loading={loading} className="py-1 px-4 text-[10px] rounded-lg h-8">
+                      {!hasActiveSubscription && <i className="fas fa-lock mr-1 text-amber-500"></i>}
                       <i className="fas fa-sync mr-1"></i> Tạo lại bối cảnh
                     </Button>
                   </div>
@@ -645,7 +811,13 @@ export default function App() {
               <Button variant="neon-yellow" onClick={() => setStep(1)}>
                 <i className="fas fa-chevron-left mr-2"></i> Quay lại
               </Button>
-              <Button onClick={handleGenerateTimelineFromStep2} disabled={!config.topic || loading} loading={loading} className="w-64 shadow-md">
+              <Button 
+                onClick={handleGenerateTimelineFromStep2} 
+                disabled={!config.topic || loading} 
+                loading={loading} 
+                className="w-64 shadow-md"
+              >
+                {!hasActiveSubscription && <i className="fas fa-lock mr-1.5 text-amber-500"></i>}
                 Tạo dàn ý Timeline <i className="fas fa-list-check ml-2"></i>
               </Button>
             </div>
@@ -663,6 +835,7 @@ export default function App() {
                  </p>
                </div>
                <Button onClick={generateTimelineAgain} loading={loading} variant={config.timeline ? "outline" : "primary"}>
+                 {!hasActiveSubscription && <i className="fas fa-lock mr-1 text-amber-500"></i>}
                  <i className="fas fa-wand-magic-sparkles mr-2"></i> {config.timeline ? "Làm mới Timeline" : "AI Tạo Timeline"}
                </Button>
             </div>
@@ -684,7 +857,14 @@ export default function App() {
               <Button variant="neon-yellow" onClick={() => setStep(2)}>
                 <i className="fas fa-chevron-left mr-2"></i> Quay lại
               </Button>
-              <Button onClick={generatePrompts} disabled={!config.timeline || loading} loading={loading} variant="success" className="w-64 shadow-md">
+              <Button 
+                onClick={generatePrompts} 
+                disabled={!config.timeline || loading} 
+                loading={loading} 
+                variant="success" 
+                className="w-64 shadow-md"
+              >
+                {!hasActiveSubscription && <i className="fas fa-lock mr-1.5 text-amber-500"></i>}
                 TIẾP TỤC TẠO PROMPT <i className="fas fa-rocket ml-2"></i>
               </Button>
             </div>
@@ -784,14 +964,51 @@ export default function App() {
         )}
       </main>
 
+      {/* MODALS */}
+      <PaymentModal
+        isOpen={isPaymentOpen}
+        onClose={() => setIsPaymentOpen(false)}
+        onSuccess={(sub) => {
+          setHasActiveSubscription(true);
+          setSubscription(sub);
+          checkSubscription();
+        }}
+      />
+
+      <TrialModal
+        isOpen={isTrialOpen}
+        onClose={() => setIsTrialOpen(false)}
+        onSuccess={(sub) => {
+          setHasActiveSubscription(true);
+          setSubscription(sub);
+          setTrialNotice(`🎉 Kích hoạt dùng thử thành công! Chào mừng ${sub.customer_name || ''}, bạn có ${paymentConfig.trial_hours || 24} giờ sử dụng trọn bộ tính năng AI.`);
+          setError(null);
+          checkSubscription();
+        }}
+        trialConfig={{
+          trial_hours: paymentConfig.trial_hours || 24,
+          title: paymentConfig.trial_title || 'Dùng thử miễn phí',
+          description: paymentConfig.trial_description || 'Trải nghiệm 24 giờ sử dụng trọn bộ tính năng video AI.',
+          app_redirect_url: paymentConfig.trial_app_redirect_url || ''
+        }}
+      />
+
+      <AdminDashboard
+        isOpen={isAdminOpen}
+        onClose={() => {
+          setIsAdminOpen(false);
+          checkSubscription();
+        }}
+      />
+
       {/* GLOBAL LOADING */}
       {loading && (
         <div className="fixed inset-0 bg-slate-900/30 backdrop-blur-md z-[100] flex items-center justify-center animate-in fade-in">
-          <div className="bg-white border border-slate-200 p-12 rounded-[2.5rem] shadow-2xl flex flex-col items-center max-w-sm w-full mx-4 border-t-indigo-600 border-t-4">
+          <div className="bg-white border border-slate-200 p-12 rounded-[2.5rem] shadow-2xl flex flex-col items-center max-w-sm w-full mx-4 border-t-emerald-600 border-t-4">
              <div className="relative mb-8">
-               <div className="w-20 h-20 border-4 border-indigo-100 border-t-indigo-600 rounded-full animate-spin"></div>
+               <div className="w-20 h-20 border-4 border-emerald-100 border-t-emerald-600 rounded-full animate-spin"></div>
                <div className="absolute inset-0 flex items-center justify-center">
-                 <i className="fas fa-brain text-indigo-600 animate-pulse text-2xl"></i>
+                 <i className="fas fa-brain text-emerald-600 animate-pulse text-2xl"></i>
                </div>
              </div>
              <h3 className="text-slate-900 font-black uppercase tracking-widest text-sm mb-3">Đang xử lý dữ liệu...</h3>
