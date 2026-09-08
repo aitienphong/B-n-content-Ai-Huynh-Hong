@@ -1,0 +1,8 @@
+{
+  "name": "VIDEO AI BÁN CONTENT - HUYNH HONG",
+  "description": "Ứng dụng tạo timeline chi tiết và prompt cho video AI - VIDEO AI BÁN CONTENT - HUYNH HONG",
+  "requestFramePermissions": [],
+  "majorCapabilities": [
+    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
+  ]
+}
