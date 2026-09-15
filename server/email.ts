@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { query, queryOne } from './db';
+import { query, queryOne } from './db.js';
 
 export interface EmailSettings {
   id: string;

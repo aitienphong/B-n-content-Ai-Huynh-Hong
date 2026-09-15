@@ -4,13 +4,13 @@ import path from 'node:path';
 import crypto from 'node:crypto';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
-import { query, queryOne, initDatabase, isDatabaseConfigured } from './server/db';
+import { query, queryOne, initDatabase, isDatabaseConfigured } from './server/db.js';
 import {
   sendTrialActivationEmail,
   sendPaymentSuccessEmail,
   sendTestEmail,
   getEmailSettings
-} from './server/email';
+} from './server/email.js';
 
 // Initialize PostgreSQL database schema asynchronously
 initDatabase().catch((err) => {
