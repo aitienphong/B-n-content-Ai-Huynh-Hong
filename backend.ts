@@ -2,7 +2,6 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { fileURLToPath } from 'node:url';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
 import { query, queryOne, initDatabase, isDatabaseConfigured } from './server/db';
@@ -12,9 +11,6 @@ import {
   sendTestEmail,
   getEmailSettings
 } from './server/email';
-
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = path.dirname(__filename);
 
 // Initialize PostgreSQL database schema asynchronously
 initDatabase().catch((err) => {
