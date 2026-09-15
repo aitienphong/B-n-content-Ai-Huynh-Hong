@@ -3,7 +3,6 @@ import cors from 'cors';
 import path from 'node:path';
 import crypto from 'node:crypto';
 import { GoogleGenAI, Type } from '@google/genai';
-import { createServer as createViteServer } from 'vite';
 import { query, queryOne, initDatabase, isDatabaseConfigured } from './server/db.js';
 import {
   sendTrialActivationEmail,
@@ -1657,6 +1656,7 @@ const isVercel = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV) |
 if (!isVercel) {
   async function startServer() {
     if (process.env.NODE_ENV !== 'production') {
+      const { createServer: createViteServer } = await import('vite');
       const vite = await createViteServer({
         server: { middlewareMode: true },
         appType: 'spa',
