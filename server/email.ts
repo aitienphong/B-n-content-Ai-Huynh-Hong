@@ -1,5 +1,5 @@
 import nodemailer from 'nodemailer';
-import { db } from './db';
+import { query, queryOne } from './db';
 
 export interface EmailSettings {
   id: string;
@@ -13,9 +13,27 @@ export interface EmailSettings {
   updated_at?: string;
 }
 
-export function getEmailSettings(): EmailSettings {
-  const row = db.prepare('SELECT * FROM email_settings WHERE id = ?').get('default') as any;
-  if (!row) {
+export async function getEmailSettings(): Promise<EmailSettings> {
+  try {
+    const row = await queryOne<any>('SELECT * FROM email_settings WHERE id = $1', ['default']);
+    if (!row) {
+      return {
+        id: 'default',
+        smtp_host: process.env.SMTP_HOST || 'smtp.gmail.com',
+        smtp_port: Number(process.env.SMTP_PORT || 587),
+        smtp_user: process.env.SMTP_USER || '',
+        smtp_pass: process.env.SMTP_PASS || '',
+        from_name: process.env.SMTP_FROM_NAME || 'AI Video Công Nghệ',
+        from_email: process.env.SMTP_FROM || '',
+        is_active: 1
+      };
+    }
+    return {
+      ...row,
+      smtp_port: Number(row.smtp_port || 587),
+      is_active: Number(row.is_active ?? 1)
+    };
+  } catch (err) {
     return {
       id: 'default',
       smtp_host: process.env.SMTP_HOST || 'smtp.gmail.com',
@@ -27,11 +45,6 @@ export function getEmailSettings(): EmailSettings {
       is_active: 1
     };
   }
-  return {
-    ...row,
-    smtp_port: Number(row.smtp_port || 587),
-    is_active: Number(row.is_active || 1)
-  };
 }
 
 export interface SendTrialEmailParams {
@@ -47,7 +60,7 @@ export async function sendTrialActivationEmail(params: SendTrialEmailParams): Pr
   error?: string;
 }> {
   const { to, customerName, activationLink, trialHours } = params;
-  const settings = getEmailSettings();
+  const settings = await getEmailSettings();
   const emailLogId = `mail_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
   const subject = `[Kích hoạt] Trải nghiệm miễn phí ${trialHours}h công nghệ AI Video`;
@@ -62,78 +75,54 @@ export async function sendTrialActivationEmail(params: SendTrialEmailParams): Pr
       <style>
         body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; background-color: #f8fafc; margin: 0; padding: 24px; color: #1e293b; }
         .container { max-width: 580px; margin: 0 auto; background: #ffffff; border-radius: 20px; overflow: hidden; border: 1px solid #e2e8f0; box-shadow: 0 10px 25px -5px rgba(0,0,0,0.05); }
-        .header { background: linear-gradient(135deg, #047857 0%, #0d9488 50%, #059669 100%); padding: 36px 32px; text-align: center; color: #ffffff; }
-        .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 14px; border-radius: 9999px; font-size: 11px; font-weight: 800; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 12px; }
-        .title { margin: 0; font-size: 22px; font-weight: 800; line-height: 1.3; }
-        .body { padding: 32px; font-size: 15px; line-height: 1.6; color: #334155; }
-        .greeting { font-size: 17px; font-weight: 700; color: #0f172a; margin-bottom: 16px; }
-        .box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 14px; padding: 18px; margin: 24px 0; }
-        .box-title { font-weight: 700; color: #166534; font-size: 14px; margin-bottom: 8px; }
-        .box-list { margin: 0; padding-left: 20px; color: #15803d; font-size: 13px; }
-        .box-list li { margin-bottom: 6px; }
-        .cta-container { text-align: center; margin: 32px 0 24px 0; }
-        .cta-button { display: inline-block; background: linear-gradient(135deg, #059669 0%, #0d9488 100%); color: #ffffff !important; text-decoration: none; font-weight: 800; font-size: 16px; padding: 16px 36px; border-radius: 14px; box-shadow: 0 4px 12px rgba(5, 150, 105, 0.35); text-align: center; }
-        .link-text { font-size: 12px; color: #64748b; word-break: break-all; margin-top: 16px; background: #f1f5f9; padding: 12px; border-radius: 10px; border: 1px dashed #cbd5e1; }
-        .footer { background: #f8fafc; padding: 20px 32px; border-top: 1px solid #e2e8f0; font-size: 12px; color: #64748b; text-align: center; }
+        .header { background: linear-gradient(135deg, #059669 0%, #10b981 50%, #14b8a6 100%); padding: 36px 32px; text-align: center; color: #ffffff; }
+        .badge { display: inline-block; background: rgba(255,255,255,0.2); padding: 4px 14px; border-radius: 9999px; font-size: 11px; font-weight: 800; letter-spacing: 0.5px; text-transform: uppercase; margin-bottom: 12px; }
+        .title { font-size: 24px; font-weight: 900; margin: 0; line-height: 1.3; }
+        .body { padding: 32px; }
+        .greeting { font-size: 16px; font-weight: 700; color: #0f172a; margin-bottom: 12px; }
+        .btn-wrapper { text-align: center; margin: 32px 0; }
+        .btn { display: inline-block; background: linear-gradient(135deg, #059669 0%, #10b981 100%); color: #ffffff !important; text-decoration: none; padding: 16px 36px; border-radius: 14px; font-weight: 800; font-size: 15px; box-shadow: 0 4px 14px rgba(16, 185, 129, 0.4); }
+        .info-box { background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 12px; padding: 16px; margin: 24px 0; font-size: 13px; color: #166534; }
+        .footer { background: #f8fafc; padding: 20px 32px; text-align: center; font-size: 12px; color: #64748b; border-top: 1px solid #f1f5f9; }
+        .link-alt { word-break: break-all; font-size: 12px; color: #0284c7; }
       </style>
     </head>
     <body>
       <div class="container">
         <div class="header">
-          <div class="badge">DÙNG THỬ MIỄN PHÍ 100%</div>
-          <h1 class="title">KÍCH HOẠT DÙNG THỬ AI VIDEO</h1>
-          <p style="margin: 8px 0 0 0; font-size: 14px; opacity: 0.9;">Trải nghiệm ${trialHours} giờ trọn bộ tính năng sáng tạo đỉnh cao</p>
+          <div class="badge">Trải nghiệm miễn phí ${trialHours} Giờ</div>
+          <h1 class="title">Kích Hoạt Tài Khoản AI Video</h1>
         </div>
         <div class="body">
           <div class="greeting">Xin chào ${customerName || 'bạn'},</div>
-          <p>
-            Cảm ơn bạn đã quan tâm đến <strong>Công nghệ AI Video Bán Content</strong>. Chúng tôi đã chuẩn bị sẵn phiên dùng thử miễn phí dành riêng cho bạn.
-          </p>
+          <p>Cảm ơn bạn đã đăng ký trải nghiệm công nghệ tạo video bán content AI. Tài khoản dùng thử <strong>${trialHours} giờ</strong> của bạn đã sẵn sàng.</p>
+          <p>Vui lòng bấm vào nút bên dưới để mở khóa toàn bộ tính năng kịch bản timeline và prompt ngay lập tức:</p>
           
-          <div class="box">
-            <div class="box-title">🎁 Quyền lợi trong gói dùng thử ${trialHours} giờ:</div>
-            <ul class="box-list">
-              <li>Mở khóa toàn bộ thuật toán phân tích phong cách kịch bản AI</li>
-              <li>Tạo dàn ý Timeline chi tiết theo cấu trúc video triệu view</li>
-              <li>Xuất bảng Prompts hình ảnh/video chuẩn xác cho các công cụ AI</li>
-              <li>Hỗ trợ đa dạng tỷ lệ khung hình và ngôn ngữ lồng tiếng</li>
+          <div class="btn-wrapper">
+            <a href="${activationLink}" target="_blank" class="btn">Bắt Đầu Dùng Thử Ngay &rarr;</a>
+          </div>
+
+          <div class="info-box">
+            <strong>Lưu ý:</strong>
+            <ul style="margin: 6px 0 0 0; padding-left: 18px;">
+              <li>Thời gian ${trialHours} giờ sẽ bắt đầu tính từ khi bạn bấm vào nút kích hoạt.</li>
+              <li>Link kích hoạt có giá trị sử dụng trong vòng 48 giờ.</li>
             </ul>
           </div>
 
-          <p style="text-align: center; font-weight: 600; color: #0f172a;">
-            Nhấn vào nút bên dưới để kích hoạt tài khoản và mở khóa tính năng ngay:
-          </p>
-
-          <div class="cta-container">
-            <a href="${activationLink}" class="cta-button" target="_blank">
-              👉 BẮT ĐẦU DÙNG THỬ NGAY (${trialHours}H)
-            </a>
-          </div>
-
-          <p style="font-size: 13px; color: #64748b; text-align: center;">
-            Nếu nút bấm trên không hoạt động, bạn hãy sao chép và dán liên kết sau vào trình duyệt:
-          </p>
-          <div class="link-text">
-            ${activationLink}
-          </div>
-          
-          <p style="font-size: 12px; color: #94a3b8; text-align: center; margin-top: 20px;">
-            * Lưu ý: Liên kết kích hoạt có hiệu lực trong vòng 48 giờ.
+          <p style="font-size: 12px; color: #94a3b8; margin-top: 24px;">Nếu nút trên không hoạt động, bạn hãy sao chép và dán liên kết này vào trình duyệt web:<br>
+            <a href="${activationLink}" class="link-alt">${activationLink}</a>
           </p>
         </div>
         <div class="footer">
-          <p style="margin: 0 0 6px 0;">Hệ thống AI Video Content Automation</p>
-          <p style="margin: 0;">Nếu bạn không yêu cầu dùng thử này, vui lòng bỏ qua email.</p>
+          Đây là email tự động từ hệ thống AI Video Tools. Vui lòng không phản hồi email này.
         </div>
       </div>
     </body>
     </html>
   `;
 
-  // Check if SMTP is configured
-  const hasSmtpConfig = settings.is_active && settings.smtp_user && settings.smtp_pass;
-
-  if (hasSmtpConfig) {
+  if (settings.is_active && settings.smtp_user && settings.smtp_pass) {
     try {
       const transporter = nodemailer.createTransport({
         host: settings.smtp_host || 'smtp.gmail.com',
@@ -157,29 +146,40 @@ export async function sendTrialActivationEmail(params: SendTrialEmailParams): Pr
       });
 
       // Log success
-      db.prepare(`
-        INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(emailLogId, to, subject, customerName, activationLink, 'sent', now);
+      try {
+        await query(`
+          INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [emailLogId, to, subject, customerName, activationLink, 'sent', now]);
+      } catch (logErr) {
+        console.warn('Failed to log sent email:', logErr);
+      }
 
       return { success: true, simulated: false };
     } catch (err: any) {
       console.error('SMTP sending error:', err);
 
-      // Log failure but fallback so user isn't stuck
-      db.prepare(`
-        INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, error_message, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(emailLogId, to, subject, customerName, activationLink, 'failed', err.message || 'SMTP Error', now);
+      try {
+        await query(`
+          INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, error_message, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `, [emailLogId, to, subject, customerName, activationLink, 'failed', err.message || 'SMTP Error', now]);
+      } catch (logErr) {
+        console.warn('Failed to log email error:', logErr);
+      }
 
       return { success: true, simulated: true, error: err.message };
     }
   } else {
     // Simulated delivery (when SMTP is not configured yet)
-    db.prepare(`
-      INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, error_message, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(emailLogId, to, subject, customerName, activationLink, 'simulated', 'Chưa cấu hình SMTP máy chủ', now);
+    try {
+      await query(`
+        INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, error_message, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [emailLogId, to, subject, customerName, activationLink, 'simulated', 'Chưa cấu hình SMTP máy chủ', now]);
+    } catch (logErr) {
+      console.warn('Failed to log simulated email:', logErr);
+    }
 
     console.log(`[Email Service] Simulated email sent to ${to}. Activation link: ${activationLink}`);
     return { success: true, simulated: true };
@@ -195,7 +195,7 @@ export async function sendPaymentSuccessEmail(params: {
   orderCode: string;
 }): Promise<{ success: boolean; simulated?: boolean; error?: string }> {
   const { to, customerName, planName, planDays, amount, orderCode } = params;
-  const settings = getEmailSettings();
+  const settings = await getEmailSettings();
   const emailLogId = `mail_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
   const subject = `[Xác nhận] Kích hoạt thành công ${planName} - AI Video`;
@@ -286,30 +286,42 @@ export async function sendPaymentSuccessEmail(params: {
         html: htmlContent
       });
 
-      db.prepare(`
-        INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(emailLogId, to, subject, customerName, 'Đã kích hoạt trực tiếp', 'sent', now);
+      try {
+        await query(`
+          INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7)
+        `, [emailLogId, to, subject, customerName, 'Đã kích hoạt trực tiếp', 'sent', now]);
+      } catch (logErr) {
+        console.warn('Failed to log payment email:', logErr);
+      }
 
       return { success: true, simulated: false };
     } catch (err: any) {
-      db.prepare(`
-        INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, error_message, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(emailLogId, to, subject, customerName, 'Đã kích hoạt trực tiếp', 'failed', err.message || 'SMTP Error', now);
+      try {
+        await query(`
+          INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, error_message, created_at)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `, [emailLogId, to, subject, customerName, 'Đã kích hoạt trực tiếp', 'failed', err.message || 'SMTP Error', now]);
+      } catch (logErr) {
+        console.warn('Failed to log payment email error:', logErr);
+      }
       return { success: true, simulated: true, error: err.message };
     }
   } else {
-    db.prepare(`
-      INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, error_message, created_at)
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(emailLogId, to, subject, customerName, 'Đã kích hoạt trực tiếp', 'simulated', 'Chưa cấu hình SMTP máy chủ', now);
+    try {
+      await query(`
+        INSERT INTO sent_emails (id, to_email, subject, customer_name, activation_link, status, error_message, created_at)
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `, [emailLogId, to, subject, customerName, 'Đã kích hoạt trực tiếp', 'simulated', 'Chưa cấu hình SMTP máy chủ', now]);
+    } catch (logErr) {
+      console.warn('Failed to log simulated email:', logErr);
+    }
     return { success: true, simulated: true };
   }
 }
 
 export async function sendTestEmail(toEmail: string): Promise<{ success: boolean; message: string }> {
-  const settings = getEmailSettings();
+  const settings = await getEmailSettings();
   if (!settings.smtp_user || !settings.smtp_pass) {
     throw new Error('Chưa cấu hình tài khoản hoặc mật khẩu SMTP.');
   }

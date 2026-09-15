@@ -5,25 +5,48 @@ import crypto from 'node:crypto';
 import { fileURLToPath } from 'node:url';
 import { GoogleGenAI, Type } from '@google/genai';
 import { createServer as createViteServer } from 'vite';
-import { db, initDatabase } from './server/db';
-import { sendTrialActivationEmail, sendPaymentSuccessEmail, sendTestEmail, getEmailSettings } from './server/email';
+import { query, queryOne, initDatabase, isDatabaseConfigured } from './server/db';
+import {
+  sendTrialActivationEmail,
+  sendPaymentSuccessEmail,
+  sendTestEmail,
+  getEmailSettings
+} from './server/email';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
-// Initialize SQLite database
-initDatabase();
+// Initialize PostgreSQL database schema asynchronously
+initDatabase().catch((err) => {
+  console.warn('[Database] Initial schema check postponed or pending DATABASE_URL:', err.message || err);
+});
 
-const app = express();
+export const app = express();
 const PORT = 3000;
 
 app.use(cors());
 app.use(express.json());
 
 // Helper to get SePay settings
-function getSepaySettings() {
-  const settings = db.prepare('SELECT * FROM sepay_settings WHERE id = ?').get('default') as any;
-  if (!settings) {
+async function getSepaySettings() {
+  try {
+    const settings = await queryOne<any>('SELECT * FROM sepay_settings WHERE id = $1', ['default']);
+    if (!settings) {
+      return {
+        bank_name: 'MBBank',
+        bank_code: 'MB',
+        account_number: '0988888888',
+        account_holder: 'HUYNH HONG',
+        api_key: process.env.SEPAY_API_KEY || '',
+        webhook_secret: process.env.SEPAY_WEBHOOK_SECRET || '',
+        order_prefix: 'AFF',
+        payment_content_template: '{order_code}',
+        webhook_url: '/api/sepay-webhook',
+        is_active: 1
+      };
+    }
+    return settings;
+  } catch (err) {
     return {
       bank_name: 'MBBank',
       bank_code: 'MB',
@@ -37,13 +60,26 @@ function getSepaySettings() {
       is_active: 1
     };
   }
-  return settings;
 }
 
 // Helper to get Trial settings
-function getTrialSettings() {
-  const settings = db.prepare('SELECT * FROM trial_settings WHERE id = ?').get('default') as any;
-  if (!settings) {
+async function getTrialSettings() {
+  try {
+    const settings = await queryOne<any>('SELECT * FROM trial_settings WHERE id = $1', ['default']);
+    if (!settings) {
+      return {
+        is_active: 1,
+        trial_hours: 24,
+        button_title: 'Dùng thử miễn phí',
+        description: 'Trải nghiệm 24 giờ sử dụng trọn bộ tính năng video AI đỉnh cao.',
+        terms: 'Mỗi email và số điện thoại chỉ được tham gia dùng thử 1 lần.',
+        app_redirect_url: '',
+        max_per_email: 1,
+        max_per_phone: 1
+      };
+    }
+    return settings;
+  } catch (err) {
     return {
       is_active: 1,
       trial_hours: 24,
@@ -55,7 +91,6 @@ function getTrialSettings() {
       max_per_phone: 1
     };
   }
-  return settings;
 }
 
 // Admin passcode middleware
@@ -69,15 +104,18 @@ function verifyAdmin(req: express.Request, res: express.Response, next: express.
 }
 
 // Helper: Check active subscription by email or phone
-function checkUserSubscription(identifier: string) {
+async function checkUserSubscription(identifier: string) {
   if (!identifier) return null;
-  const sub = db.prepare(`
+  const sub = await queryOne<any>(
+    `
     SELECT * FROM subscriptions 
-    WHERE (customer_email = ? OR customer_phone = ?)
+    WHERE (customer_email = $1 OR customer_phone = $2)
       AND status = 'active'
     ORDER BY created_at DESC 
     LIMIT 1
-  `).get(identifier, identifier) as any;
+  `,
+    [identifier, identifier]
+  );
 
   if (!sub) return null;
 
@@ -86,7 +124,11 @@ function checkUserSubscription(identifier: string) {
   const expireTime = new Date(sub.expired_at).getTime();
 
   if (expireTime < now) {
-    db.prepare('UPDATE subscriptions SET status = ? WHERE id = ?').run('expired', sub.id);
+    try {
+      await query('UPDATE subscriptions SET status = $1 WHERE id = $2', ['expired', sub.id]);
+    } catch (e) {
+      console.warn('Failed to update expired status:', e);
+    }
     return null;
   }
 
@@ -95,34 +137,54 @@ function checkUserSubscription(identifier: string) {
 
 // ================= API ROUTES =================
 
-// 1. Get Public Plans
-app.get('/api/plans', (req, res) => {
+// 0. Health Check Endpoint (Required for Vercel/Monitoring)
+app.get('/api/health', async (req, res) => {
   try {
-    const plans = db.prepare('SELECT * FROM plans WHERE is_active = 1 ORDER BY price ASC').all();
+    if (!isDatabaseConfigured()) {
+      return res.status(503).json({
+        success: false,
+        database: 'disconnected',
+        message: 'DATABASE_URL environment variable is not configured'
+      });
+    }
+
+    // Ping PostgreSQL
+    await query('SELECT 1 as ok');
+
+    return res.json({
+      success: true,
+      database: 'connected'
+    });
+  } catch (err: any) {
+    return res.status(500).json({
+      success: false,
+      database: 'error'
+    });
+  }
+});
+
+// 1. Get Public Plans
+app.get('/api/plans', async (req, res) => {
+  try {
+    const plans = await query('SELECT * FROM plans WHERE is_active = 1 ORDER BY price ASC');
     res.json({ success: true, plans });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// 2. Get Public Payment Info & Settings
-app.get('/api/payment-config', (req, res) => {
+// 2. Get Public Payment & SePay Config
+app.get('/api/payment-config', async (req, res) => {
   try {
-    const settings = getSepaySettings();
-    const trial = getTrialSettings();
+    const settings = await getSepaySettings();
     res.json({
-      success: true,
       bank_name: settings.bank_name,
       bank_code: settings.bank_code,
       account_number: settings.account_number,
       account_holder: settings.account_holder,
-      order_prefix: settings.order_prefix,
-      is_active: settings.is_active === 1,
-      trial_active: trial.is_active === 1,
-      trial_hours: trial.trial_hours,
-      trial_title: trial.button_title,
-      trial_description: trial.description,
-      trial_app_redirect_url: trial.app_redirect_url || ''
+      order_prefix: settings.order_prefix || 'AFF',
+      payment_content_template: settings.payment_content_template || '{order_code}',
+      is_active: settings.is_active === 1
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
@@ -130,14 +192,19 @@ app.get('/api/payment-config', (req, res) => {
 });
 
 // 3. Create Order
-app.post('/api/orders', (req, res) => {
+app.post('/api/orders', async (req, res) => {
   try {
-    const plan_id = req.body.plan_id || req.body.planId;
-    const customer_name = req.body.customer_name || req.body.customerName;
-    const customer_email = req.body.customer_email || req.body.customerEmail;
-    const customer_phone = req.body.customer_phone || req.body.customerPhone;
-    const note = req.body.note;
+    const {
+      plan_id,
+      customer_name,
+      customer_email,
+      customer_phone,
+      note
+    } = req.body;
 
+    if (!plan_id) {
+      return res.status(400).json({ error: 'Vui lòng chọn gói đăng ký.' });
+    }
     if (!customer_name || !customer_name.trim()) {
       return res.status(400).json({ error: 'Vui lòng nhập họ và tên của bạn.' });
     }
@@ -146,85 +213,88 @@ app.post('/api/orders', (req, res) => {
       return res.status(400).json({ error: 'Vui lòng nhập địa chỉ email hợp lệ.' });
     }
     if (!customer_phone || !customer_phone.trim()) {
-      return res.status(400).json({ error: 'Vui lòng nhập số điện thoại liên hệ.' });
+      return res.status(400).json({ error: 'Vui lòng nhập số điện thoại.' });
     }
 
-    const plan = db.prepare('SELECT * FROM plans WHERE id = ? AND is_active = 1').get(plan_id) as any;
+    const plan = await queryOne<any>('SELECT * FROM plans WHERE id = $1 AND is_active = 1', [plan_id]);
     if (!plan) {
-      return res.status(404).json({ error: 'Gói sử dụng không tồn tại hoặc đã tạm dừng.' });
+      return res.status(404).json({ error: 'Gói dịch vụ không tồn tại hoặc đã tạm dừng.' });
     }
 
-    const settings = getSepaySettings();
+    const settings = await getSepaySettings();
     const prefix = settings.order_prefix || 'AFF';
 
-    // Generate unique order code AFF + 6 digits
-    const countRow = db.prepare('SELECT COUNT(*) as count FROM orders').get() as { count: number };
-    const nextNum = (countRow.count + 1).toString().padStart(6, '0');
-    let order_code = `${prefix}${nextNum}`;
+    // Generate unique order code (e.g. AFF000001)
+    const countRow = await queryOne<{ count: string | number }>('SELECT COUNT(*) as count FROM orders');
+    const nextNum = Number(countRow?.count || 0) + 1;
+    let order_code = `${prefix}${String(nextNum).padStart(6, '0')}`;
 
-    // Verify uniqueness
-    const existing = db.prepare('SELECT order_code FROM orders WHERE order_code = ?').get(order_code);
+    // Ensure uniqueness
+    const existing = await queryOne('SELECT order_code FROM orders WHERE order_code = $1', [order_code]);
     if (existing) {
-      const timestamp = Date.now().toString().slice(-6);
-      order_code = `${prefix}${timestamp}`;
+      const rand = Math.floor(1000 + Math.random() * 9000);
+      order_code = `${prefix}${rand}${String(Date.now()).slice(-2)}`;
     }
 
     const order_id = `ord_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    const payment_content = order_code;
     const now = new Date().toISOString();
+    const payment_content = order_code;
+    const cleanEmail = customer_email.trim().toLowerCase();
+    const cleanPhone = customer_phone.trim();
 
-    db.prepare(`
+    await query(
+      `
       INSERT INTO orders (
-        order_id, order_code, plan_id, plan_name, plan_days, amount,
-        customer_name, customer_email, customer_phone, note, status,
-        payment_content, created_at
+        order_id, order_code, plan_id, plan_name, plan_days,
+        amount, customer_name, customer_email, customer_phone,
+        note, status, payment_content, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      order_id,
-      order_code,
-      plan.id,
-      plan.name,
-      plan.days,
-      plan.price,
-      customer_name.trim(),
-      customer_email.trim().toLowerCase(),
-      customer_phone.trim(),
-      note || '',
-      'pending',
-      payment_content,
-      now
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11, $12, $13)
+    `,
+      [
+        order_id,
+        order_code,
+        plan.id,
+        plan.name,
+        Number(plan.days),
+        Number(plan.price),
+        customer_name.trim(),
+        cleanEmail,
+        cleanPhone,
+        note || '',
+        'pending',
+        payment_content,
+        now
+      ]
     );
 
-    // QR Codes
-    // VietQR quick format
-    const qr_url = `https://img.vietqr.io/image/${settings.bank_code}-${settings.account_number}-compact2.png?amount=${plan.price}&addInfo=${encodeURIComponent(payment_content)}&accountName=${encodeURIComponent(settings.account_holder)}`;
-    const sepay_qr_url = `https://qr.sepay.vn/img?bank=${settings.bank_code}&acc=${settings.account_number}&template=compact&amount=${plan.price}&des=${encodeURIComponent(payment_content)}`;
+    // Build VietQR Image URL
+    const qrUrl = `https://qr.sepay.vn/img?acc=${encodeURIComponent(settings.account_number)}&bank=${encodeURIComponent(settings.bank_code)}&amount=${plan.price}&des=${encodeURIComponent(payment_content)}`;
 
     res.json({
       success: true,
       order: {
         order_id,
         order_code,
+        plan_id: plan.id,
         plan_name: plan.name,
-        plan_days: plan.days,
-        amount: plan.price,
-        customer_name,
-        customer_email,
-        customer_phone,
-        status: 'pending',
+        plan_days: Number(plan.days),
+        amount: Number(plan.price),
+        customer_name: customer_name.trim(),
+        customer_email: cleanEmail,
+        customer_phone: cleanPhone,
         payment_content,
+        status: 'pending',
         created_at: now
       },
-      payment_info: {
+      payment: {
         bank_name: settings.bank_name,
         bank_code: settings.bank_code,
         account_number: settings.account_number,
         account_holder: settings.account_holder,
-        amount: plan.price,
+        amount: Number(plan.price),
         payment_content,
-        qr_url,
-        sepay_qr_url
+        qr_url: qrUrl
       }
     });
   } catch (err: any) {
@@ -234,10 +304,10 @@ app.post('/api/orders', (req, res) => {
 });
 
 // 4. Check Order Status
-app.get('/api/orders/:order_code/status', (req, res) => {
+app.get('/api/orders/:order_code/status', async (req, res) => {
   try {
     const { order_code } = req.params;
-    const order = db.prepare('SELECT * FROM orders WHERE order_code = ?').get(order_code) as any;
+    const order = await queryOne<any>('SELECT * FROM orders WHERE order_code = $1', [order_code]);
 
     if (!order) {
       return res.status(404).json({ error: 'Không tìm thấy thông tin đơn hàng.' });
@@ -245,11 +315,14 @@ app.get('/api/orders/:order_code/status', (req, res) => {
 
     let subscription = null;
     if (order.status === 'paid') {
-      subscription = db.prepare(`
+      subscription = await queryOne<any>(
+        `
         SELECT * FROM subscriptions 
-        WHERE customer_email = ? AND status = 'active'
+        WHERE customer_email = $1 AND status = 'active'
         ORDER BY created_at DESC LIMIT 1
-      `).get(order.customer_email) as any;
+      `,
+        [order.customer_email]
+      );
     }
 
     res.json({
@@ -265,38 +338,47 @@ app.get('/api/orders/:order_code/status', (req, res) => {
   }
 });
 
-// 5. SePay Webhook Endpoint
-app.post('/api/sepay-webhook', (req, res) => {
+// 5. SePay Webhook Endpoint (Fully Idempotent with Neon PostgreSQL)
+app.post('/api/sepay-webhook', async (req, res) => {
   const logId = `wh_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
   const now = new Date().toISOString();
   const rawPayload = JSON.stringify(req.body);
 
   try {
-    const settings = getSepaySettings();
+    const settings = await getSepaySettings();
 
-    // Verify Webhook Secret if set
-    if (settings.webhook_secret && settings.webhook_secret.trim()) {
-      const authHeader = req.headers['authorization'] || '';
-      const sepayHeader = req.headers['sepay-secret'] || '';
-      const expected = settings.webhook_secret.trim();
+    // Verify Webhook Secret if configured
+    const configuredSecret = (process.env.SEPAY_WEBHOOK_SECRET || settings.webhook_secret || '').trim();
+    if (configuredSecret) {
+      const authHeader = String(req.headers['authorization'] || '').trim();
+      const sepayHeader = String(req.headers['sepay-secret'] || '').trim();
 
-      const isAuthorized = 
-        authHeader === `Apikey ${expected}` || 
-        authHeader === `Bearer ${expected}` || 
-        authHeader === expected ||
-        sepayHeader === expected;
+      const isAuthorized =
+        authHeader === `Apikey ${configuredSecret}` ||
+        authHeader === `Bearer ${configuredSecret}` ||
+        authHeader === configuredSecret ||
+        sepayHeader === configuredSecret ||
+        req.body.secret === configuredSecret;
 
       if (!isAuthorized) {
-        db.prepare(`
-          INSERT INTO webhook_logs (id, received_at, raw_payload, result, error_message)
-          VALUES (?, ?, ?, ?, ?)
-        `).run(logId, now, rawPayload, 'unauthorized', 'Invalid or missing Webhook Secret');
+        try {
+          await query(
+            `
+            INSERT INTO webhook_logs (id, received_at, raw_payload, result, error_message)
+            VALUES ($1, $2, $3, $4, $5)
+          `,
+            [logId, now, rawPayload, 'unauthorized', 'Invalid or missing Webhook Secret']
+          );
+        } catch (logErr) {
+          console.warn('Failed to insert unauthorized log:', logErr);
+        }
 
         return res.status(401).json({ success: false, message: 'Unauthorized Webhook' });
       }
     }
 
     const {
+      id: sepayTxId,
       transferType,
       transferAmount,
       content,
@@ -309,15 +391,38 @@ app.post('/api/sepay-webhook', (req, res) => {
 
     const amount = Number(transferAmount || req.body.amount || 0);
     const paymentContent = String(content || description || '');
+    const transactionId = String(sepayTxId || referenceCode || '').trim();
 
     // Check transaction type (Must be money IN)
-    if (transferType && transferType !== 'in' && transferType !== 'IN') {
-      db.prepare(`
-        INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, result, error_message)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(logId, now, rawPayload, paymentContent, amount, 'ignored', 'Not an IN transaction');
+    if (transferType && String(transferType).toLowerCase() !== 'in') {
+      try {
+        await query(
+          `
+          INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, transaction_id, result, error_message)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `,
+          [logId, now, rawPayload, paymentContent, amount, transactionId || null, 'ignored', 'Not an IN transaction']
+        );
+      } catch (logErr) {
+        console.warn('Failed to log ignored webhook:', logErr);
+      }
 
-      return res.json({ success: true, message: 'Ignored non-credit transaction' });
+      return res.status(200).json({ success: true, message: 'Ignored non-credit transaction' });
+    }
+
+    // Chống xử lý trùng theo id giao dịch SePay (Idempotent protection)
+    if (transactionId) {
+      const existingTx = await queryOne<any>(
+        `SELECT id FROM webhook_logs WHERE transaction_id = $1 AND result = 'success' LIMIT 1`,
+        [transactionId]
+      );
+      if (existingTx) {
+        return res.status(200).json({
+          success: true,
+          message: 'Giao dịch đã được xử lý trước đó (Idempotent)',
+          duplicate: true
+        });
+      }
     }
 
     // Extract Order Code using prefix regex (e.g. AFF000001)
@@ -327,136 +432,228 @@ app.post('/api/sepay-webhook', (req, res) => {
     const detectedCode = match ? match[1].toUpperCase() : null;
 
     if (!detectedCode) {
-      db.prepare(`
-        INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, result, error_message)
-        VALUES (?, ?, ?, ?, ?, ?, ?)
-      `).run(logId, now, rawPayload, paymentContent, amount, 'no_order_code', 'Không tìm thấy mã đơn hàng trong nội dung chuyển khoản');
+      try {
+        await query(
+          `
+          INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, transaction_id, result, error_message)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+        `,
+          [
+            logId,
+            now,
+            rawPayload,
+            paymentContent,
+            amount,
+            transactionId || null,
+            'no_order_code',
+            'Không tìm thấy mã đơn hàng trong nội dung chuyển khoản'
+          ]
+        );
+      } catch (logErr) {
+        console.warn('Failed to log missing code:', logErr);
+      }
 
       return res.status(200).json({ success: false, message: 'Order code not found in payment content' });
     }
 
-    // Find Order in DB
-    const order = db.prepare('SELECT * FROM orders WHERE order_code = ?').get(detectedCode) as any;
+    // Find Order in PostgreSQL
+    const order = await queryOne<any>('SELECT * FROM orders WHERE order_code = $1', [detectedCode]);
     if (!order) {
-      db.prepare(`
-        INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, result, error_message)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(logId, now, rawPayload, paymentContent, amount, detectedCode, 'order_not_found', `Mã đơn ${detectedCode} không tồn tại`);
+      try {
+        await query(
+          `
+          INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, transaction_id, result, error_message)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `,
+          [
+            logId,
+            now,
+            rawPayload,
+            paymentContent,
+            amount,
+            detectedCode,
+            transactionId || null,
+            'order_not_found',
+            `Mã đơn ${detectedCode} không tồn tại`
+          ]
+        );
+      } catch (logErr) {
+        console.warn('Failed to log order not found:', logErr);
+      }
 
       return res.status(200).json({ success: false, message: 'Order code does not exist' });
     }
 
     // Check if already paid
     if (order.status === 'paid') {
-      db.prepare(`
-        INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, result, error_message)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(logId, now, rawPayload, paymentContent, amount, detectedCode, 'already_paid', 'Đơn hàng này đã được xác nhận thanh toán trước đó');
+      try {
+        await query(
+          `
+          INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, transaction_id, result, error_message)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `,
+          [
+            logId,
+            now,
+            rawPayload,
+            paymentContent,
+            amount,
+            detectedCode,
+            transactionId || null,
+            'already_paid',
+            'Đơn hàng này đã được xác nhận thanh toán trước đó'
+          ]
+        );
+      } catch (logErr) {
+        console.warn('Failed to log already paid:', logErr);
+      }
 
       return res.status(200).json({ success: true, message: 'Order already paid, no action needed' });
     }
 
     // Validate Amount
-    if (amount < order.amount) {
-      db.prepare(`
-        INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, result, error_message)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(logId, now, rawPayload, paymentContent, amount, detectedCode, 'insufficient_amount', `Số tiền chuyển (${amount}) nhỏ hơn giá trị đơn hàng (${order.amount})`);
+    if (amount < Number(order.amount)) {
+      try {
+        await query(
+          `
+          INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, transaction_id, result, error_message)
+          VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+        `,
+          [
+            logId,
+            now,
+            rawPayload,
+            paymentContent,
+            amount,
+            detectedCode,
+            transactionId || null,
+            'insufficient_amount',
+            `Số tiền chuyển (${amount}) nhỏ hơn giá trị đơn hàng (${order.amount})`
+          ]
+        );
+      } catch (logErr) {
+        console.warn('Failed to log insufficient amount:', logErr);
+      }
 
       return res.status(200).json({ success: false, message: 'Insufficient payment amount' });
     }
 
     // Valid Payment! Calculate Expiration Date
     const paidAt = new Date();
-    const expiredAt = new Date(paidAt.getTime() + (order.plan_days || 36500) * 24 * 60 * 60 * 1000);
+    const planDays = Number(order.plan_days || 36500);
+    const expiredAt = new Date(paidAt.getTime() + planDays * 24 * 60 * 60 * 1000);
 
-    // 1. Update Order status
-    db.prepare(`
+    // 1. Update Order status to 'paid'
+    await query(
+      `
       UPDATE orders 
-      SET status = 'paid', paid_at = ?, expired_at = ?
-      WHERE order_id = ?
-    `).run(paidAt.toISOString(), expiredAt.toISOString(), order.order_id);
+      SET status = 'paid', paid_at = $1, expired_at = $2
+      WHERE order_id = $3
+    `,
+      [paidAt.toISOString(), expiredAt.toISOString(), order.order_id]
+    );
 
     // 2. Insert into Payments
     const paymentId = `pay_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
-    db.prepare(`
+    await query(
+      `
       INSERT INTO payments (
         payment_id, order_code, amount, bank_brand_name,
         account_number, transaction_content, transaction_date, reference_code, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      paymentId,
-      order.order_code,
-      amount,
-      gateway || settings.bank_code,
-      accountNumber || settings.account_number,
-      paymentContent,
-      transactionDate || now,
-      referenceCode || logId,
-      now
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9)
+    `,
+      [
+        paymentId,
+        order.order_code,
+        amount,
+        gateway || settings.bank_code,
+        accountNumber || settings.account_number,
+        paymentContent,
+        transactionDate || now,
+        referenceCode || transactionId || logId,
+        now
+      ]
     );
 
-    // 3. Create or Update Subscription
-    // Check if user has an existing active trial or paid subscription
-    const existingSub = db.prepare(`
+    // 3. Create or Update Subscription for customer
+    const existingSub = await queryOne<any>(
+      `
       SELECT * FROM subscriptions 
-      WHERE (customer_email = ? OR customer_phone = ?)
+      WHERE (customer_email = $1 OR customer_phone = $2)
       ORDER BY created_at DESC LIMIT 1
-    `).get(order.customer_email, order.customer_phone) as any;
+    `,
+      [order.customer_email, order.customer_phone]
+    );
 
     const subId = `sub_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
 
     if (existingSub) {
-      db.prepare(`
+      await query(
+        `
         UPDATE subscriptions 
-        SET subscription_type = 'paid', plan_name = ?, status = 'active', started_at = ?, expired_at = ?
-        WHERE id = ?
-      `).run(order.plan_name, paidAt.toISOString(), expiredAt.toISOString(), existingSub.id);
+        SET subscription_type = 'paid', plan_name = $1, status = 'active', started_at = $2, expired_at = $3
+        WHERE id = $4
+      `,
+        [order.plan_name, paidAt.toISOString(), expiredAt.toISOString(), existingSub.id]
+      );
     } else {
-      db.prepare(`
+      await query(
+        `
         INSERT INTO subscriptions (
           id, customer_name, customer_email, customer_phone,
           subscription_type, plan_name, status, started_at, expired_at, created_at
         )
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(
-        subId,
-        order.customer_name,
-        order.customer_email,
-        order.customer_phone,
-        'paid',
-        order.plan_name,
-        'active',
-        paidAt.toISOString(),
-        expiredAt.toISOString(),
-        now
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+      `,
+        [
+          subId,
+          order.customer_name,
+          order.customer_email,
+          order.customer_phone,
+          'paid',
+          order.plan_name,
+          'active',
+          paidAt.toISOString(),
+          expiredAt.toISOString(),
+          now
+        ]
       );
     }
 
-    // 4. Log Success
-    db.prepare(`
-      INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, result)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(logId, now, rawPayload, paymentContent, amount, detectedCode, 'success');
+    // 4. Log Success with unique transaction_id
+    await query(
+      `
+      INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, transaction_id, result)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `,
+      [logId, now, rawPayload, paymentContent, amount, detectedCode, transactionId || null, 'success']
+    );
 
-    // Send payment confirmation email
+    // Send payment confirmation email asynchronously (non-blocking)
     sendPaymentSuccessEmail({
       to: order.customer_email,
       customerName: order.customer_name,
       planName: order.plan_name,
-      planDays: order.plan_days,
-      amount: order.amount,
+      planDays: Number(order.plan_days),
+      amount: Number(order.amount),
       orderCode: order.order_code
-    }).catch(err => console.error('Payment email error:', err));
+    }).catch((err) => console.error('Payment email error:', err));
 
-    return res.json({ success: true, message: 'Payment successfully confirmed and activated' });
+    return res.status(200).json({ success: true, message: 'Payment successfully confirmed and activated' });
   } catch (err: any) {
     console.error('Webhook processing error:', err);
-    db.prepare(`
-      INSERT INTO webhook_logs (id, received_at, raw_payload, result, error_message)
-      VALUES (?, ?, ?, ?, ?)
-    `).run(logId, now, rawPayload, 'exception', err.message);
+    try {
+      await query(
+        `
+        INSERT INTO webhook_logs (id, received_at, raw_payload, result, error_message)
+        VALUES ($1, $2, $3, $4, $5)
+      `,
+        [logId, now, rawPayload, 'exception', err.message]
+      );
+    } catch (logErr) {
+      console.warn('Failed to log webhook exception:', logErr);
+    }
 
     return res.status(500).json({ error: 'Internal webhook error: ' + err.message });
   }
@@ -480,7 +677,7 @@ app.post('/api/trial/register', async (req, res) => {
       return res.status(400).json({ error: 'Vui lòng nhập số điện thoại liên hệ.' });
     }
 
-    const trialSettings = getTrialSettings();
+    const trialSettings = await getTrialSettings();
     if (trialSettings.is_active !== 1) {
       return res.status(400).json({ error: 'Chương trình dùng thử hiện chưa được bật.' });
     }
@@ -489,51 +686,56 @@ app.post('/api/trial/register', async (req, res) => {
     const cleanPhone = customer_phone.trim();
 
     // Check if email already used trial
-    const emailUsed = db.prepare(`
-      SELECT COUNT(*) as count FROM trial_logs WHERE customer_email = ?
-    `).get(cleanEmail) as { count: number };
-    if (emailUsed.count >= trialSettings.max_per_email) {
+    const emailUsed = await queryOne<{ count: string | number }>(
+      `SELECT COUNT(*) as count FROM trial_logs WHERE customer_email = $1`,
+      [cleanEmail]
+    );
+    if (Number(emailUsed?.count || 0) >= Number(trialSettings.max_per_email || 1)) {
       return res.status(400).json({ error: 'Email này đã sử dụng hết lượt dùng thử.' });
     }
 
     // Check if phone already used trial
-    const phoneUsed = db.prepare(`
-      SELECT COUNT(*) as count FROM trial_logs WHERE customer_phone = ?
-    `).get(cleanPhone) as { count: number };
-    if (phoneUsed.count >= trialSettings.max_per_phone) {
+    const phoneUsed = await queryOne<{ count: string | number }>(
+      `SELECT COUNT(*) as count FROM trial_logs WHERE customer_phone = $1`,
+      [cleanPhone]
+    );
+    if (Number(phoneUsed?.count || 0) >= Number(trialSettings.max_per_phone || 1)) {
       return res.status(400).json({ error: 'Số điện thoại này đã sử dụng hết lượt dùng thử.' });
     }
 
     // Check if user already has an active paid subscription
-    const activeSub = db.prepare(`
-      SELECT * FROM subscriptions 
-      WHERE (customer_email = ? OR customer_phone = ?) AND status = 'active'
-    `).get(cleanEmail, cleanPhone) as any;
+    const activeSub = await queryOne<any>(
+      `SELECT * FROM subscriptions WHERE (customer_email = $1 OR customer_phone = $2) AND status = 'active'`,
+      [cleanEmail, cleanPhone]
+    );
     if (activeSub && activeSub.subscription_type === 'paid') {
       return res.status(400).json({ error: 'Bạn đã có gói trả phí đang hoạt động, không cần đăng ký dùng thử.' });
     }
 
-    const trialHours = trialSettings.trial_hours || 24;
+    const trialHours = Number(trialSettings.trial_hours || 24);
     const now = new Date();
     const token = crypto.randomBytes(24).toString('hex');
     const tokenExpires = new Date(now.getTime() + 48 * 60 * 60 * 1000); // link valid 48h
 
     // Insert pending token
-    db.prepare(`
+    await query(
+      `
       INSERT INTO trial_tokens (
         token, customer_name, customer_email, customer_phone,
         trial_hours, status, created_at, expired_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      token,
-      customer_name.trim(),
-      cleanEmail,
-      cleanPhone,
-      trialHours,
-      'pending',
-      now.toISOString(),
-      tokenExpires.toISOString()
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `,
+      [
+        token,
+        customer_name.trim(),
+        cleanEmail,
+        cleanPhone,
+        trialHours,
+        'pending',
+        now.toISOString(),
+        tokenExpires.toISOString()
+      ]
     );
 
     // Build activation URL
@@ -550,12 +752,9 @@ app.post('/api/trial/register', async (req, res) => {
       trialHours
     });
 
-    db.prepare(`
-      UPDATE trial_tokens SET email_sent = ?, email_error = ? WHERE token = ?
-    `).run(
-      emailResult.success && !emailResult.simulated ? 1 : 0,
-      emailResult.error || null,
-      token
+    await query(
+      `UPDATE trial_tokens SET email_sent = $1, email_error = $2 WHERE token = $3`,
+      [emailResult.success && !emailResult.simulated ? 1 : 0, emailResult.error || null, token]
     );
 
     res.json({
@@ -577,25 +776,28 @@ app.post('/api/trial/register', async (req, res) => {
 });
 
 // Activate Trial by Token (Triggered when user clicks activation link in email)
-app.post('/api/trial/activate-by-token', (req, res) => {
+app.post('/api/trial/activate-by-token', async (req, res) => {
   try {
     const { token, device_id } = req.body;
     if (!token) {
       return res.status(400).json({ error: 'Mã kích hoạt không hợp lệ.' });
     }
 
-    const tokenRecord = db.prepare('SELECT * FROM trial_tokens WHERE token = ?').get(token) as any;
+    const tokenRecord = await queryOne<any>('SELECT * FROM trial_tokens WHERE token = $1', [token]);
     if (!tokenRecord) {
       return res.status(404).json({ error: 'Liên kết kích hoạt không tồn tại hoặc không hợp lệ.' });
     }
 
     // If already activated, retrieve active subscription
     if (tokenRecord.status === 'activated') {
-      const existingSub = db.prepare(`
+      const existingSub = await queryOne<any>(
+        `
         SELECT * FROM subscriptions 
-        WHERE customer_email = ? AND status = 'active'
+        WHERE customer_email = $1 AND status = 'active'
         ORDER BY created_at DESC LIMIT 1
-      `).get(tokenRecord.customer_email) as any;
+      `,
+        [tokenRecord.customer_email]
+      );
 
       if (existingSub) {
         return res.json({
@@ -612,7 +814,7 @@ app.post('/api/trial/activate-by-token', (req, res) => {
       return res.status(400).json({ error: 'Liên kết kích hoạt đã hết hạn sử dụng. Vui lòng đăng ký lại.' });
     }
 
-    const trialHours = tokenRecord.trial_hours || 24;
+    const trialHours = Number(tokenRecord.trial_hours || 24);
     const now = new Date();
     const expiredAt = new Date(now.getTime() + trialHours * 60 * 60 * 1000);
     const subId = `trial_${Date.now()}_${Math.random().toString(36).substring(2, 7)}`;
@@ -620,50 +822,57 @@ app.post('/api/trial/activate-by-token', (req, res) => {
     const userAgent = req.headers['user-agent'] || 'unknown';
 
     // Create Subscription
-    db.prepare(`
+    await query(
+      `
       INSERT INTO subscriptions (
         id, customer_name, customer_email, customer_phone,
         subscription_type, plan_name, status, started_at, expired_at, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      subId,
-      tokenRecord.customer_name,
-      tokenRecord.customer_email,
-      tokenRecord.customer_phone,
-      'trial',
-      `Dùng thử miễn phí (${trialHours}h)`,
-      'active',
-      now.toISOString(),
-      expiredAt.toISOString(),
-      now.toISOString()
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `,
+      [
+        subId,
+        tokenRecord.customer_name,
+        tokenRecord.customer_email,
+        tokenRecord.customer_phone,
+        'trial',
+        `Dùng thử miễn phí (${trialHours}h)`,
+        'active',
+        now.toISOString(),
+        expiredAt.toISOString(),
+        now.toISOString()
+      ]
     );
 
     // Record Trial Log
-    db.prepare(`
+    await query(
+      `
       INSERT INTO trial_logs (
         id, customer_name, customer_email, customer_phone,
         device_id, ip_address, user_agent, status, started_at, expired_at, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      subId,
-      tokenRecord.customer_name,
-      tokenRecord.customer_email,
-      tokenRecord.customer_phone,
-      device_id || 'email_link',
-      String(ipAddress),
-      String(userAgent),
-      'active',
-      now.toISOString(),
-      expiredAt.toISOString(),
-      now.toISOString()
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10, $11)
+    `,
+      [
+        subId,
+        tokenRecord.customer_name,
+        tokenRecord.customer_email,
+        tokenRecord.customer_phone,
+        device_id || 'email_link',
+        String(ipAddress),
+        String(userAgent),
+        'active',
+        now.toISOString(),
+        expiredAt.toISOString(),
+        now.toISOString()
+      ]
     );
 
     // Mark token as activated
-    db.prepare(`
-      UPDATE trial_tokens SET status = 'activated', activated_at = ? WHERE token = ?
-    `).run(now.toISOString(), token);
+    await query(`UPDATE trial_tokens SET status = 'activated', activated_at = $1 WHERE token = $2`, [
+      now.toISOString(),
+      token
+    ]);
 
     res.json({
       success: true,
@@ -704,9 +913,12 @@ app.post('/api/trial/resend', async (req, res) => {
     const { token, email } = req.body;
     let record: any = null;
     if (token) {
-      record = db.prepare('SELECT * FROM trial_tokens WHERE token = ?').get(token);
+      record = await queryOne('SELECT * FROM trial_tokens WHERE token = $1', [token]);
     } else if (email) {
-      record = db.prepare('SELECT * FROM trial_tokens WHERE customer_email = ? ORDER BY created_at DESC LIMIT 1').get(email.trim().toLowerCase());
+      record = await queryOne(
+        'SELECT * FROM trial_tokens WHERE customer_email = $1 ORDER BY created_at DESC LIMIT 1',
+        [email.trim().toLowerCase()]
+      );
     }
 
     if (!record) {
@@ -722,7 +934,7 @@ app.post('/api/trial/resend', async (req, res) => {
       to: record.customer_email,
       customerName: record.customer_name,
       activationLink,
-      trialHours: record.trial_hours
+      trialHours: Number(record.trial_hours)
     });
 
     res.json({
@@ -737,14 +949,14 @@ app.post('/api/trial/resend', async (req, res) => {
 });
 
 // 7. Check Subscription Status (User Verification)
-app.get('/api/subscription/check', (req, res) => {
+app.get('/api/subscription/check', async (req, res) => {
   try {
     const identifier = String(req.query.email || req.query.phone || '').trim().toLowerCase();
     if (!identifier) {
       return res.json({ hasAccess: false, message: 'Chưa cung cấp thông tin tài khoản.' });
     }
 
-    const sub = checkUserSubscription(identifier);
+    const sub = await checkUserSubscription(identifier);
     if (!sub) {
       return res.json({
         hasAccess: false,
@@ -785,7 +997,7 @@ app.post('/api/ai/generate', async (req, res) => {
     const { email, phone, customKey, action, payload } = req.body;
 
     // Check user subscription
-    const sub = checkUserSubscription(email || phone);
+    const sub = await checkUserSubscription(email || phone);
     if (!sub) {
       return res.status(403).json({
         error: 'Bạn cần mua gói hoặc đăng ký dùng thử để sử dụng công cụ này.'
@@ -821,9 +1033,11 @@ NGUYÊN TẮC CỐT LÕI BẮT BUỘC:
 1. GIỮ NGUYÊN 100% PHONG CÁCH VIDEO GỐC:
    - Kế thừa toàn bộ bản sắc nghệ thuật từ Phong cách gốc: Tone giọng, nhịp điệu (nhanh/chậm/hồi hộp/sâu lắng), gam màu, ánh sáng, góc máy quay, bầu không khí và cảm xúc chủ đạo.
 2. THAY ĐỔI / ĐỔI MỚI NỘI DUNG (CONTENT):
-   - ${isDifferent 
-       ? 'ĐỔI MỚI NỘI DUNG HOÀN TOÀN: Sáng tạo một chủ đề mới, cốt truyện mới, tình huống mới 100% (tránh bản quyền và không trùng lặp câu chuyện cũ), nhưng phải đặt trọn vẹn trong cùng phong cách gốc.' 
-       : 'TẠO NỘI DUNG MỚI TƯƠNG TỰ: Cùng trục đề tài nhưng viết mới toàn bộ kịch bản, khai thác góc nhìn mới mẻ hơn, hấp dẫn hơn, giữ nguyên 100% phong cách gốc.'}
+   - ${
+     isDifferent
+       ? 'ĐỔI MỚI NỘI DUNG HOÀN TOÀN: Sáng tạo một chủ đề mới, cốt truyện mới, tình huống mới 100% (tránh bản quyền và không trùng lặp câu chuyện cũ), nhưng phải đặt trọn vẹn trong cùng phong cách gốc.'
+       : 'TẠO NỘI DUNG MỚI TƯƠNG TỰ: Cùng trục đề tài nhưng viết mới toàn bộ kịch bản, khai thác góc nhìn mới mẻ hơn, hấp dẫn hơn, giữ nguyên 100% phong cách gốc.'
+   }
 
 THÔNG TIN ĐẦU VÀO:
 - Tóm tắt nội dung gốc: "${summary}"
@@ -840,15 +1054,15 @@ Trả về định dạng JSON: { "topic": "string", "background": "string" }`;
       const response = await ai.models.generateContent({
         model: modelName,
         contents: prompt,
-        config: { 
-          responseMimeType: "application/json",
+        config: {
+          responseMimeType: 'application/json',
           responseSchema: {
             type: Type.OBJECT,
             properties: {
               topic: { type: Type.STRING },
               background: { type: Type.STRING }
             },
-            required: ["topic", "background"]
+            required: ['topic', 'background']
           }
         }
       });
@@ -940,7 +1154,7 @@ Trả về JSON array đúng ${N} phần tử: [{ "stt": 1, "prompt": "...", "vo
         model: modelName,
         contents: prompt,
         config: {
-          responseMimeType: "application/json",
+          responseMimeType: 'application/json',
           responseSchema: {
             type: Type.ARRAY,
             items: {
@@ -950,7 +1164,7 @@ Trả về JSON array đúng ${N} phần tử: [{ "stt": 1, "prompt": "...", "vo
                 prompt: { type: Type.STRING },
                 voice: { type: Type.STRING }
               },
-              required: ["stt", "prompt", "voice"]
+              required: ['stt', 'prompt', 'voice']
             }
           }
         }
@@ -978,24 +1192,32 @@ app.post('/api/admin/login', (req, res) => {
 });
 
 // Admin Stats Overview
-app.get('/api/admin/overview', verifyAdmin, (req, res) => {
+app.get('/api/admin/overview', verifyAdmin, async (req, res) => {
   try {
-    const totalOrders = (db.prepare('SELECT COUNT(*) as count FROM orders').get() as any).count;
-    const paidOrders = (db.prepare("SELECT COUNT(*) as count FROM orders WHERE status = 'paid'").get() as any).count;
-    const totalRevenue = (db.prepare("SELECT SUM(amount) as sum FROM orders WHERE status = 'paid'").get() as any).sum || 0;
-    const activePaidUsers = (db.prepare("SELECT COUNT(*) as count FROM subscriptions WHERE subscription_type = 'paid' AND status = 'active'").get() as any).count;
-    const activeTrialUsers = (db.prepare("SELECT COUNT(*) as count FROM subscriptions WHERE subscription_type = 'trial' AND status = 'active'").get() as any).count;
-    const totalWebhooks = (db.prepare('SELECT COUNT(*) as count FROM webhook_logs').get() as any).count;
+    const totalOrdersRow = await queryOne<{ count: string | number }>('SELECT COUNT(*) as count FROM orders');
+    const paidOrdersRow = await queryOne<{ count: string | number }>(
+      "SELECT COUNT(*) as count FROM orders WHERE status = 'paid'"
+    );
+    const totalRevenueRow = await queryOne<{ sum: string | number }>(
+      "SELECT SUM(amount) as sum FROM orders WHERE status = 'paid'"
+    );
+    const activePaidUsersRow = await queryOne<{ count: string | number }>(
+      "SELECT COUNT(*) as count FROM subscriptions WHERE subscription_type = 'paid' AND status = 'active'"
+    );
+    const activeTrialUsersRow = await queryOne<{ count: string | number }>(
+      "SELECT COUNT(*) as count FROM subscriptions WHERE subscription_type = 'trial' AND status = 'active'"
+    );
+    const totalWebhooksRow = await queryOne<{ count: string | number }>('SELECT COUNT(*) as count FROM webhook_logs');
 
     res.json({
       success: true,
       stats: {
-        totalOrders,
-        paidOrders,
-        totalRevenue,
-        activePaidUsers,
-        activeTrialUsers,
-        totalWebhooks
+        totalOrders: Number(totalOrdersRow?.count || 0),
+        paidOrders: Number(paidOrdersRow?.count || 0),
+        totalRevenue: Number(totalRevenueRow?.sum || 0),
+        activePaidUsers: Number(activePaidUsersRow?.count || 0),
+        activeTrialUsers: Number(activeTrialUsersRow?.count || 0),
+        totalWebhooks: Number(totalWebhooksRow?.count || 0)
       }
     });
   } catch (err: any) {
@@ -1004,30 +1226,49 @@ app.get('/api/admin/overview', verifyAdmin, (req, res) => {
 });
 
 // Admin Get/Update Plans
-app.get('/api/admin/plans', verifyAdmin, (req, res) => {
-  const plans = db.prepare('SELECT * FROM plans ORDER BY price ASC').all();
-  res.json({ success: true, plans });
+app.get('/api/admin/plans', verifyAdmin, async (req, res) => {
+  try {
+    const plans = await query('SELECT * FROM plans ORDER BY price ASC');
+    res.json({ success: true, plans });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/admin/plans', verifyAdmin, (req, res) => {
+app.post('/api/admin/plans', verifyAdmin, async (req, res) => {
   try {
     const { id, name, description, price, days, is_active, is_featured } = req.body;
     if (!id || !name || price === undefined) {
       return res.status(400).json({ error: 'Thiếu thông tin gói bắt buộc.' });
     }
 
-    const exists = db.prepare('SELECT id FROM plans WHERE id = ?').get(id);
+    const exists = await queryOne('SELECT id FROM plans WHERE id = $1', [id]);
     if (exists) {
-      db.prepare(`
+      await query(
+        `
         UPDATE plans 
-        SET name = ?, description = ?, price = ?, days = ?, is_active = ?, is_featured = ?
-        WHERE id = ?
-      `).run(name, description || '', Number(price), Number(days || 36500), is_active ? 1 : 0, is_featured ? 1 : 0, id);
+        SET name = $1, description = $2, price = $3, days = $4, is_active = $5, is_featured = $6
+        WHERE id = $7
+      `,
+        [name, description || '', Number(price), Number(days || 36500), is_active ? 1 : 0, is_featured ? 1 : 0, id]
+      );
     } else {
-      db.prepare(`
+      await query(
+        `
         INSERT INTO plans (id, name, description, price, days, is_active, is_featured, created_at)
-        VALUES (?, ?, ?, ?, ?, ?, ?, ?)
-      `).run(id, name, description || '', Number(price), Number(days || 36500), is_active ? 1 : 0, is_featured ? 1 : 0, new Date().toISOString());
+        VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+      `,
+        [
+          id,
+          name,
+          description || '',
+          Number(price),
+          Number(days || 36500),
+          is_active ? 1 : 0,
+          is_featured ? 1 : 0,
+          new Date().toISOString()
+        ]
+      );
     }
 
     res.json({ success: true, message: 'Lưu gói sử dụng thành công' });
@@ -1037,12 +1278,16 @@ app.post('/api/admin/plans', verifyAdmin, (req, res) => {
 });
 
 // Admin Get/Update SePay Settings
-app.get('/api/admin/sepay-settings', verifyAdmin, (req, res) => {
-  const settings = getSepaySettings();
-  res.json({ success: true, settings });
+app.get('/api/admin/sepay-settings', verifyAdmin, async (req, res) => {
+  try {
+    const settings = await getSepaySettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/admin/sepay-settings', verifyAdmin, (req, res) => {
+app.post('/api/admin/sepay-settings', verifyAdmin, async (req, res) => {
   try {
     const {
       bank_name,
@@ -1057,24 +1302,27 @@ app.post('/api/admin/sepay-settings', verifyAdmin, (req, res) => {
       is_active
     } = req.body;
 
-    db.prepare(`
+    await query(
+      `
       UPDATE sepay_settings 
-      SET bank_name = ?, bank_code = ?, account_number = ?, account_holder = ?,
-          api_key = ?, webhook_secret = ?, order_prefix = ?, payment_content_template = ?,
-          webhook_url = ?, is_active = ?, updated_at = ?
+      SET bank_name = $1, bank_code = $2, account_number = $3, account_holder = $4,
+          api_key = $5, webhook_secret = $6, order_prefix = $7, payment_content_template = $8,
+          webhook_url = $9, is_active = $10, updated_at = $11
       WHERE id = 'default'
-    `).run(
-      bank_name,
-      bank_code,
-      account_number,
-      account_holder,
-      api_key || '',
-      webhook_secret || '',
-      order_prefix || 'AFF',
-      payment_content_template || '{order_code}',
-      webhook_url || '/api/sepay-webhook',
-      is_active ? 1 : 0,
-      new Date().toISOString()
+    `,
+      [
+        bank_name,
+        bank_code,
+        account_number,
+        account_holder,
+        api_key || '',
+        webhook_secret || '',
+        order_prefix || 'AFF',
+        payment_content_template || '{order_code}',
+        webhook_url || '/api/sepay-webhook',
+        is_active ? 1 : 0,
+        new Date().toISOString()
+      ]
     );
 
     res.json({ success: true, message: 'Lưu cấu hình SePay thành công' });
@@ -1084,8 +1332,8 @@ app.post('/api/admin/sepay-settings', verifyAdmin, (req, res) => {
 });
 
 // Admin Test SePay Connection
-app.post('/api/admin/sepay-test', verifyAdmin, (req, res) => {
-  const settings = getSepaySettings();
+app.post('/api/admin/sepay-test', verifyAdmin, async (req, res) => {
+  const settings = await getSepaySettings();
   const errors: string[] = [];
 
   if (!settings.api_key || !settings.api_key.trim()) {
@@ -1112,67 +1360,75 @@ app.post('/api/admin/sepay-test', verifyAdmin, (req, res) => {
 });
 
 // Admin Create Test Transaction (Mock payment for testing)
-app.post('/api/admin/sepay-test-transaction', verifyAdmin, (req, res) => {
+app.post('/api/admin/sepay-test-transaction', verifyAdmin, async (req, res) => {
   try {
     const { order_code } = req.body;
     if (!order_code) {
       return res.status(400).json({ error: 'Vui lòng cung cấp mã đơn hàng cần test' });
     }
 
-    const order = db.prepare('SELECT * FROM orders WHERE order_code = ?').get(order_code) as any;
+    const order = await queryOne<any>('SELECT * FROM orders WHERE order_code = $1', [order_code]);
     if (!order) {
       return res.status(404).json({ error: `Không tìm thấy đơn hàng ${order_code}` });
     }
 
-    // Call internal webhook logic
     const paidAt = new Date();
-    const expiredAt = new Date(paidAt.getTime() + (order.plan_days || 36500) * 24 * 60 * 60 * 1000);
+    const expiredAt = new Date(paidAt.getTime() + (Number(order.plan_days) || 36500) * 24 * 60 * 60 * 1000);
 
-    db.prepare(`
-      UPDATE orders SET status = 'paid', paid_at = ?, expired_at = ? WHERE order_id = ?
-    `).run(paidAt.toISOString(), expiredAt.toISOString(), order.order_id);
+    await query(
+      `UPDATE orders SET status = 'paid', paid_at = $1, expired_at = $2 WHERE order_id = $3`,
+      [paidAt.toISOString(), expiredAt.toISOString(), order.order_id]
+    );
 
     const subId = `sub_${Date.now()}_test`;
-    db.prepare(`
+    await query(
+      `
       INSERT INTO subscriptions (
         id, customer_name, customer_email, customer_phone,
         subscription_type, plan_name, status, started_at, expired_at, created_at
       )
-      VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      subId,
-      order.customer_name,
-      order.customer_email,
-      order.customer_phone,
-      'paid',
-      order.plan_name,
-      'active',
-      paidAt.toISOString(),
-      expiredAt.toISOString(),
-      new Date().toISOString()
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8, $9, $10)
+    `,
+      [
+        subId,
+        order.customer_name,
+        order.customer_email,
+        order.customer_phone,
+        'paid',
+        order.plan_name,
+        'active',
+        paidAt.toISOString(),
+        expiredAt.toISOString(),
+        new Date().toISOString()
+      ]
     );
 
-    db.prepare(`
-      INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, result)
-      VALUES (?, ?, ?, ?, ?, ?, ?)
-    `).run(
-      `test_${Date.now()}`,
-      new Date().toISOString(),
-      JSON.stringify({ test: true, order_code }),
-      `TEST ${order_code}`,
-      order.amount,
-      order_code,
-      'test_success'
+    const testTxId = `test_${Date.now()}`;
+    await query(
+      `
+      INSERT INTO webhook_logs (id, received_at, raw_payload, payment_content, amount, detected_order_code, transaction_id, result)
+      VALUES ($1, $2, $3, $4, $5, $6, $7, $8)
+    `,
+      [
+        testTxId,
+        new Date().toISOString(),
+        JSON.stringify({ test: true, order_code }),
+        `TEST ${order_code}`,
+        Number(order.amount),
+        order_code,
+        testTxId,
+        'test_success'
+      ]
     );
 
     sendPaymentSuccessEmail({
       to: order.customer_email,
       customerName: order.customer_name,
       planName: order.plan_name,
-      planDays: order.plan_days,
-      amount: order.amount,
+      planDays: Number(order.plan_days),
+      amount: Number(order.amount),
       orderCode: order.order_code
-    }).catch(err => console.error('Payment test email error:', err));
+    }).catch((err) => console.error('Payment test email error:', err));
 
     res.json({
       success: true,
@@ -1184,29 +1440,46 @@ app.post('/api/admin/sepay-test-transaction', verifyAdmin, (req, res) => {
 });
 
 // Admin Get/Update Trial Settings
-app.get('/api/admin/trial-settings', verifyAdmin, (req, res) => {
-  const settings = getTrialSettings();
-  res.json({ success: true, settings });
+app.get('/api/admin/trial-settings', verifyAdmin, async (req, res) => {
+  try {
+    const settings = await getTrialSettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/admin/trial-settings', verifyAdmin, (req, res) => {
+app.post('/api/admin/trial-settings', verifyAdmin, async (req, res) => {
   try {
-    const { is_active, trial_hours, button_title, description, terms, app_redirect_url, max_per_email, max_per_phone } = req.body;
-    db.prepare(`
+    const {
+      is_active,
+      trial_hours,
+      button_title,
+      description,
+      terms,
+      app_redirect_url,
+      max_per_email,
+      max_per_phone
+    } = req.body;
+
+    await query(
+      `
       UPDATE trial_settings 
-      SET is_active = ?, trial_hours = ?, button_title = ?, description = ?,
-          terms = ?, app_redirect_url = ?, max_per_email = ?, max_per_phone = ?, updated_at = ?
+      SET is_active = $1, trial_hours = $2, button_title = $3, description = $4,
+          terms = $5, app_redirect_url = $6, max_per_email = $7, max_per_phone = $8, updated_at = $9
       WHERE id = 'default'
-    `).run(
-      is_active ? 1 : 0,
-      Number(trial_hours || 24),
-      button_title || 'Dùng thử miễn phí',
-      description || '',
-      terms || '',
-      app_redirect_url || '',
-      Number(max_per_email || 1),
-      Number(max_per_phone || 1),
-      new Date().toISOString()
+    `,
+      [
+        is_active ? 1 : 0,
+        Number(trial_hours || 24),
+        button_title || 'Dùng thử miễn phí',
+        description || '',
+        terms || '',
+        app_redirect_url || '',
+        Number(max_per_email || 1),
+        Number(max_per_phone || 1),
+        new Date().toISOString()
+      ]
     );
 
     res.json({ success: true, message: 'Lưu cấu hình Dùng thử thành công' });
@@ -1216,88 +1489,108 @@ app.post('/api/admin/trial-settings', verifyAdmin, (req, res) => {
 });
 
 // Admin Orders List
-app.get('/api/admin/orders', verifyAdmin, (req, res) => {
-  const orders = db.prepare('SELECT * FROM orders ORDER BY created_at DESC').all();
-  res.json({ success: true, orders });
+app.get('/api/admin/orders', verifyAdmin, async (req, res) => {
+  try {
+    const orders = await query('SELECT * FROM orders ORDER BY created_at DESC');
+    res.json({ success: true, orders });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin Webhook Logs List
-app.get('/api/admin/webhook-logs', verifyAdmin, (req, res) => {
-  const logs = db.prepare('SELECT * FROM webhook_logs ORDER BY received_at DESC LIMIT 100').all();
-  res.json({ success: true, logs });
+app.get('/api/admin/webhook-logs', verifyAdmin, async (req, res) => {
+  try {
+    const logs = await query('SELECT * FROM webhook_logs ORDER BY received_at DESC LIMIT 100');
+    res.json({ success: true, logs });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin Active Users List (Subscriptions)
-app.get('/api/admin/active-users', verifyAdmin, (req, res) => {
-  const users = db.prepare(`
-    SELECT * FROM subscriptions 
-    ORDER BY created_at DESC
-  `).all();
-  res.json({ success: true, users });
+app.get('/api/admin/active-users', verifyAdmin, async (req, res) => {
+  try {
+    const users = await query('SELECT * FROM subscriptions ORDER BY created_at DESC');
+    res.json({ success: true, users });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin Trial Users List
-app.get('/api/admin/trial-users', verifyAdmin, (req, res) => {
-  const { filter } = req.query; // 'all', 'active', 'expired', 'upgraded'
-  const trials = db.prepare(`
-    SELECT t.*, s.subscription_type, s.status as sub_status 
-    FROM trial_logs t
-    LEFT JOIN subscriptions s ON t.customer_email = s.customer_email
-    ORDER BY t.created_at DESC
-  `).all() as any[];
+app.get('/api/admin/trial-users', verifyAdmin, async (req, res) => {
+  try {
+    const { filter } = req.query; // 'all', 'active', 'expired', 'upgraded'
+    const trials = await query<any>(`
+      SELECT t.*, s.subscription_type, s.status as sub_status 
+      FROM trial_logs t
+      LEFT JOIN subscriptions s ON t.customer_email = s.customer_email
+      ORDER BY t.created_at DESC
+    `);
 
-  const now = new Date().getTime();
-  const processed = trials.map(t => {
-    const expired = new Date(t.expired_at).getTime() < now;
-    const isUpgraded = t.subscription_type === 'paid';
-    let statusLabel = 'Đang dùng thử';
-    if (isUpgraded) statusLabel = 'Đã nâng cấp trả phí';
-    else if (expired) statusLabel = 'Đã hết hạn';
+    const now = new Date().getTime();
+    const processed = trials.map((t) => {
+      const expired = new Date(t.expired_at).getTime() < now;
+      const isUpgraded = t.subscription_type === 'paid';
+      let statusLabel = 'Đang dùng thử';
+      if (isUpgraded) statusLabel = 'Đã nâng cấp trả phí';
+      else if (expired) statusLabel = 'Đã hết hạn';
 
-    const remainingHours = Math.max(0, Math.floor((new Date(t.expired_at).getTime() - now) / (1000 * 60 * 60)));
+      const remainingHours = Math.max(0, Math.floor((new Date(t.expired_at).getTime() - now) / (1000 * 60 * 60)));
 
-    return {
-      ...t,
-      statusLabel,
-      remainingHours,
-      isExpired: expired,
-      isUpgraded
-    };
-  });
+      return {
+        ...t,
+        statusLabel,
+        remainingHours,
+        isExpired: expired,
+        isUpgraded
+      };
+    });
 
-  const filtered = processed.filter(t => {
-    if (filter === 'active') return !t.isExpired && !t.isUpgraded;
-    if (filter === 'expired') return t.isExpired && !t.isUpgraded;
-    if (filter === 'upgraded') return t.isUpgraded;
-    return true;
-  });
+    const filtered = processed.filter((t) => {
+      if (filter === 'active') return !t.isExpired && !t.isUpgraded;
+      if (filter === 'expired') return t.isExpired && !t.isUpgraded;
+      if (filter === 'upgraded') return t.isUpgraded;
+      return true;
+    });
 
-  res.json({ success: true, trialUsers: filtered });
+    res.json({ success: true, trialUsers: filtered });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin Email Settings & Logs
-app.get('/api/admin/email-settings', verifyAdmin, (req, res) => {
-  const settings = getEmailSettings();
-  res.json({ success: true, settings });
+app.get('/api/admin/email-settings', verifyAdmin, async (req, res) => {
+  try {
+    const settings = await getEmailSettings();
+    res.json({ success: true, settings });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
-app.post('/api/admin/email-settings', verifyAdmin, (req, res) => {
+app.post('/api/admin/email-settings', verifyAdmin, async (req, res) => {
   try {
     const { smtp_host, smtp_port, smtp_user, smtp_pass, from_name, from_email, is_active } = req.body;
-    db.prepare(`
+    await query(
+      `
       UPDATE email_settings 
-      SET smtp_host = ?, smtp_port = ?, smtp_user = ?, smtp_pass = ?,
-          from_name = ?, from_email = ?, is_active = ?, updated_at = ?
+      SET smtp_host = $1, smtp_port = $2, smtp_user = $3, smtp_pass = $4,
+          from_name = $5, from_email = $6, is_active = $7, updated_at = $8
       WHERE id = 'default'
-    `).run(
-      smtp_host || 'smtp.gmail.com',
-      Number(smtp_port || 587),
-      smtp_user || '',
-      smtp_pass || '',
-      from_name || 'AI Video Công Nghệ',
-      from_email || '',
-      is_active ? 1 : 0,
-      new Date().toISOString()
+    `,
+      [
+        smtp_host || 'smtp.gmail.com',
+        Number(smtp_port || 587),
+        smtp_user || '',
+        smtp_pass || '',
+        from_name || 'AI Video Công Nghệ',
+        from_email || '',
+        is_active ? 1 : 0,
+        new Date().toISOString()
+      ]
     );
 
     res.json({ success: true, message: 'Lưu cấu hình Email SMTP thành công' });
@@ -1319,61 +1612,74 @@ app.post('/api/admin/email-test', verifyAdmin, async (req, res) => {
   }
 });
 
-app.get('/api/admin/sent-emails', verifyAdmin, (req, res) => {
-  const emails = db.prepare('SELECT * FROM sent_emails ORDER BY created_at DESC LIMIT 100').all();
-  res.json({ success: true, emails });
+app.get('/api/admin/sent-emails', verifyAdmin, async (req, res) => {
+  try {
+    const emails = await query('SELECT * FROM sent_emails ORDER BY created_at DESC LIMIT 100');
+    res.json({ success: true, emails });
+  } catch (err: any) {
+    res.status(500).json({ error: err.message });
+  }
 });
 
 // Admin Clear All Customers & Test Data
-app.post('/api/admin/clear-test-data', verifyAdmin, (req, res) => {
+app.post('/api/admin/clear-test-data', verifyAdmin, async (req, res) => {
   try {
     const { target } = req.body; // 'all', 'trials', 'orders'
 
     if (target === 'trials') {
-      db.prepare("DELETE FROM subscriptions WHERE subscription_type = 'trial'").run();
-      db.prepare('DELETE FROM trial_logs').run();
-      db.prepare('DELETE FROM trial_tokens').run();
-      db.prepare('DELETE FROM sent_emails').run();
+      await query("DELETE FROM subscriptions WHERE subscription_type = 'trial'");
+      await query('DELETE FROM trial_logs');
+      await query('DELETE FROM trial_tokens');
+      await query('DELETE FROM sent_emails');
     } else {
-      // Clear all customer and transaction data
-      db.prepare('DELETE FROM subscriptions').run();
-      db.prepare('DELETE FROM trial_logs').run();
-      db.prepare('DELETE FROM trial_tokens').run();
-      db.prepare('DELETE FROM orders').run();
-      db.prepare('DELETE FROM payments').run();
-      db.prepare('DELETE FROM webhook_logs').run();
-      db.prepare('DELETE FROM sent_emails').run();
+      await query('DELETE FROM subscriptions');
+      await query('DELETE FROM trial_logs');
+      await query('DELETE FROM trial_tokens');
+      await query('DELETE FROM orders');
+      await query('DELETE FROM payments');
+      await query('DELETE FROM webhook_logs');
+      await query('DELETE FROM sent_emails');
     }
 
     res.json({
       success: true,
-      message: 'Đã xóa toàn bộ dữ liệu khách hàng, đăng ký dùng thử và đơn hàng thành công!'
+      message: 'Đã xóa dữ liệu kiểm tra thành công!'
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
   }
 });
 
-// ================= VITE MIDDLEWARE & SPA =================
+// Export Express app for Vercel Serverless Function & Testing
+export default app;
 
-async function startServer() {
-  if (process.env.NODE_ENV !== 'production') {
-    const vite = await createViteServer({
-      server: { middlewareMode: true },
-      appType: 'spa',
-    });
-    app.use(vite.middlewares);
-  } else {
-    const distPath = path.join(process.cwd(), 'dist');
-    app.use(express.static(distPath));
-    app.get('*all', (req, res) => {
-      res.sendFile(path.join(distPath, 'index.html'));
+// ================= VITE MIDDLEWARE & STANDALONE SERVER =================
+
+// Only start the HTTP listener when NOT running in a Vercel Serverless environment
+const isVercel = process.env.VERCEL === '1' || Boolean(process.env.VERCEL_ENV) || Boolean(process.env.AWS_LAMBDA_FUNCTION_NAME);
+
+if (!isVercel) {
+  async function startServer() {
+    if (process.env.NODE_ENV !== 'production') {
+      const vite = await createViteServer({
+        server: { middlewareMode: true },
+        appType: 'spa',
+      });
+      app.use(vite.middlewares);
+    } else {
+      const distPath = path.join(process.cwd(), 'dist');
+      app.use(express.static(distPath));
+      app.get('*all', (req, res) => {
+        res.sendFile(path.join(distPath, 'index.html'));
+      });
+    }
+
+    app.listen(PORT, '0.0.0.0', () => {
+      console.log(`Server listening on http://0.0.0.0:${PORT}`);
     });
   }
 
-  app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server listening on http://0.0.0.0:${PORT}`);
+  startServer().catch((err) => {
+    console.error('Failed to start standalone server:', err);
   });
 }
-
-startServer();
