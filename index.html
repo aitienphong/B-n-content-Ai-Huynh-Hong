@@ -14,82 +14,68 @@
         @import url('https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800;900&family=Inter:wght@400;500;600;700&display=swap');
         body {
             font-family: 'Plus Jakarta Sans', 'Inter', sans-serif;
-            background-color: #f8fafc;
+            background-color: #031A12;
             color: #0f172a;
         }
         .custom-scrollbar::-webkit-scrollbar {
             width: 8px;
         }
         .custom-scrollbar::-webkit-scrollbar-track {
-            background: #f1f5f9;
+            background: #06251A;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb {
-            background: #cbd5e1;
+            background: #05C7A5;
             border-radius: 4px;
         }
         .custom-scrollbar::-webkit-scrollbar-thumb:hover {
-            background: #94a3b8;
+            background: #00D9F5;
         }
 
-        /* Khung chìm siêu rõ nét (Sharp Sunken / Inset frame) */
+        /* Khung chìm & nổi theo hệ màu công nghệ cao cấp */
         .frame-recessed {
-            background: #e2e8f0;
-            box-shadow: inset 3px 3px 6px rgba(15, 23, 42, 0.22), inset -3px -3px 6px rgba(255, 255, 255, 1);
-            border: 1.5px solid #cbd5e1;
+            background: #F3F8FA;
+            border: 1px solid #D8E2E8;
+            box-shadow: 0 1px 3px rgba(3, 26, 18, 0.04);
         }
         .frame-recessed-soft {
-            background: #edf2f7;
-            box-shadow: inset 2.5px 3px 6px rgba(15, 23, 42, 0.16), inset -2.5px -3px 6px rgba(255, 255, 255, 1);
-            border: 1.5px solid #cbd5e1;
-        }
-        .frame-recessed-indigo {
-            background: #e0e7ff;
-            box-shadow: inset 3px 3px 7px rgba(67, 56, 202, 0.24), inset -3px -3px 6px rgba(255, 255, 255, 1);
-            border: 1.5px solid #c7d2fe;
+            background: #F3F8FA;
+            border: 1px solid #D8E2E8;
+            box-shadow: 0 1px 2px rgba(3, 26, 18, 0.03);
         }
 
-        /* Nốt nổi siêu rõ nét (Sharp Raised / Embossed Node) */
-        .frame-elevated {
-            background: linear-gradient(145deg, #ffffff 0%, #f8fafc 100%);
-            box-shadow: 4px 6px 14px rgba(15, 23, 42, 0.16), 1px 2px 5px rgba(15, 23, 42, 0.08), -3px -3px 8px rgba(255, 255, 255, 1);
-            border: 1.5px solid #e2e8f0;
-        }
-        .frame-elevated:hover {
-            box-shadow: 6px 9px 20px rgba(79, 70, 229, 0.22), 2px 3px 6px rgba(15, 23, 42, 0.1), -3px -3px 8px rgba(255, 255, 255, 1);
-            border-color: #c7d2fe;
-        }
-        .frame-elevated:active {
-            box-shadow: inset 3px 3px 6px rgba(15, 23, 42, 0.22), inset -2px -2px 5px rgba(255, 255, 255, 1);
-            transform: translateY(1px);
-        }
-
-        /* Gradient text utilities (Green theme / Xanh lá) */
+        /* Gradient text utilities */
         .text-gradient-title {
-            background: linear-gradient(135deg, #059669 0%, #10b981 40%, #14b8a6 70%, #047857 100%);
+            background: linear-gradient(135deg, #00D9F5 0%, #05C7A5 50%, #12D96B 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .text-gradient-primary {
-            background: linear-gradient(135deg, #047857 0%, #059669 40%, #10b981 70%, #0d9488 100%);
+            background: linear-gradient(135deg, #00D9F5 0%, #05C7A5 60%, #12D96B 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .text-gradient-gemini {
-            background: linear-gradient(135deg, #059669 0%, #10b981 50%, #14b8a6 100%);
+            background: linear-gradient(135deg, #00D9F5 0%, #05C7A5 50%, #12D96B 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .text-gradient-featured {
+            background: linear-gradient(135deg, #FFB800 0%, #E6F000 35%, #12D96B 70%, #05C7A5 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .text-gradient-selected {
+            background: linear-gradient(135deg, #FF9D00 0%, #E7E600 35%, #48D52B 70%, #00BFA5 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }
 
         .text-gradient-success {
-            background: linear-gradient(135deg, #047857 0%, #10b981 50%, #059669 100%);
-            -webkit-background-clip: text;
-            -webkit-text-fill-color: transparent;
-        }
-
-        .text-gradient-warning {
-            background: linear-gradient(135deg, #65a30d 0%, #84cc16 50%, #059669 100%);
+            background: linear-gradient(135deg, #12D96B 0%, #05C7A5 100%);
             -webkit-background-clip: text;
             -webkit-text-fill-color: transparent;
         }

@@ -310,28 +310,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
   if (!isOpen) return null;
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/80 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200 font-['Plus_Jakarta_Sans',sans-serif]">
-      <div className="relative w-full max-w-6xl bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden flex flex-col max-h-[95vh] my-auto">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#031A12]/80 backdrop-blur-md p-2 sm:p-4 overflow-y-auto animate-in fade-in duration-200 font-['Plus_Jakarta_Sans',sans-serif]">
+      <div className="relative w-full max-w-6xl bg-[#FCFDFC] rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.5)] border border-[#D8E2E8] overflow-hidden flex flex-col max-h-[95vh] my-auto">
         
-        {/* Top Header */}
-        <div className="bg-slate-900 text-white px-6 py-4 flex items-center justify-between border-b border-slate-800 shrink-0">
+        {/* Top Header: Thanh đầu trang: xanh đen pha lục #06251A có viền xanh lá */}
+        <div className="bg-[#06251A] text-white px-6 py-4 flex items-center justify-between border-b border-[#12D96B]/30 shrink-0">
           <div className="flex items-center gap-3">
-            <div className="w-10 h-10 rounded-2xl bg-blue-600/30 border border-blue-500/50 flex items-center justify-center text-blue-400 shadow-inner">
+            <div className="w-10 h-10 rounded-2xl bg-[#064957] border border-[#00D9F5]/40 flex items-center justify-center text-[#00D9F5] shadow-[0_0_10px_rgba(0,217,245,0.2)]">
               <i className="fas fa-shield-alt text-lg"></i>
             </div>
             <div>
-              <h3 className="font-black text-base sm:text-lg flex items-center gap-2">
+              <h3 className="font-black text-base sm:text-lg flex items-center gap-2 text-white">
                 Hệ Thống Quản Trị SePay & Gói Dùng
-                <span className="text-[10px] bg-blue-500/20 text-blue-400 border border-blue-500/30 px-2 py-0.5 rounded-full font-mono">
+                <span className="text-[10px] bg-[#042B22] text-[#4DD6A8] border border-[#05C7A5]/50 px-2 py-0.5 rounded-full font-mono">
                   ADMIN v2.0
                 </span>
               </h3>
-              <p className="text-slate-400 text-xs">Quản lý thanh toán, kích hoạt gói tự động và người dùng</p>
+              <p className="text-[#4DD6A8]/70 text-xs">Quản lý thanh toán, kích hoạt gói tự động và người dùng</p>
             </div>
           </div>
           <button
             onClick={onClose}
-            className="w-8 h-8 rounded-full bg-slate-800 hover:bg-slate-700 text-slate-300 hover:text-white flex items-center justify-center transition-colors"
+            className="w-8 h-8 rounded-full bg-[#042B22] text-[#05C7A5] hover:text-[#00D9F5] border border-[#05C7A5]/50 flex items-center justify-center transition-colors cursor-pointer"
           >
             <i className="fas fa-times text-sm"></i>
           </button>
@@ -355,11 +355,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
         {!isAuthenticated ? (
           /* Login Form */
           <div className="p-8 sm:p-12 max-w-md mx-auto w-full text-center space-y-6 my-auto">
-            <div className="w-16 h-16 rounded-2xl bg-blue-50 text-blue-600 flex items-center justify-center text-3xl mx-auto shadow-sm border border-blue-100">
+            <div className="w-16 h-16 rounded-2xl bg-[#064957] text-[#00D9F5] border-2 border-[#00D9F5] flex items-center justify-center text-3xl mx-auto shadow-[0_0_14px_rgba(0,217,245,0.25)]">
               <i className="fas fa-lock"></i>
             </div>
             <div>
-              <h4 className="text-xl font-black text-slate-900">Xác Thực Quản Trị Viên</h4>
+              <h4 className="text-xl font-black text-[#031A12]">Xác Thực Quản Trị Viên</h4>
               <p className="text-xs text-slate-500 mt-1">
                 Nhập mã PIN Quản trị viên (Mặc định: 123456 hoặc trong ADMIN_PASSCODE)
               </p>
@@ -370,14 +370,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
                 placeholder="Nhập mã PIN..."
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
-                className="w-full bg-slate-50 border border-slate-300 rounded-2xl px-4 py-3 text-center text-lg font-mono tracking-widest text-slate-900 outline-none focus:bg-white focus:border-blue-600 focus:ring-2 focus:ring-blue-100 transition-all font-bold"
+                className="w-full bg-white border border-[#D8E2E8] rounded-2xl px-4 py-3 text-center text-lg font-mono tracking-widest text-[#031A12] outline-none focus:border-[#05C7A5] focus:ring-2 focus:ring-[#05C7A5]/20 transition-all font-bold"
               />
               <button
                 type="submit"
                 disabled={loading}
-                className="w-full py-3.5 rounded-2xl bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white font-black text-sm shadow-md transition-all flex items-center justify-center gap-2"
+                className="w-full py-3.5 rounded-2xl bg-[#064957] hover:bg-[#085a6b] text-white border-2 border-[#00D9F5] font-black text-sm shadow-[0_0_14px_rgba(0,217,245,0.25)] transition-all flex items-center justify-center gap-2 cursor-pointer disabled:opacity-50"
               >
-                {loading ? <i className="fas fa-spinner fa-spin"></i> : <i className="fas fa-key"></i>}
+                {loading ? <i className="fas fa-spinner fa-spin text-[#00D9F5]"></i> : <i className="fas fa-key text-[#00D9F5]"></i>}
                 Đăng Nhập Quản Trị
               </button>
             </form>
@@ -387,67 +387,67 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
           <div className="flex flex-col md:flex-row flex-1 overflow-hidden">
             
             {/* Sidebar Navigation */}
-            <div className="w-full md:w-64 bg-slate-900 border-r border-slate-800 p-3 flex md:flex-col gap-1 overflow-x-auto md:overflow-y-auto shrink-0">
+            <div className="w-full md:w-64 bg-[#06251A] border-r border-[#12D96B]/20 p-3 flex md:flex-col gap-1 overflow-x-auto md:overflow-y-auto shrink-0">
               <button
                 onClick={() => switchTab('overview')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap ${
-                  activeTab === 'overview' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap cursor-pointer ${
+                  activeTab === 'overview' ? 'bg-[#064957] text-[#00D9F5] border border-[#00D9F5]/40 shadow-[0_0_10px_rgba(0,217,245,0.2)]' : 'text-[#4DD6A8]/70 hover:text-white hover:bg-[#042B22]'
                 }`}
               >
                 <i className="fas fa-chart-line w-4 text-center"></i> Tổng quan
               </button>
               <button
                 onClick={() => switchTab('plans')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap ${
-                  activeTab === 'plans' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap cursor-pointer ${
+                  activeTab === 'plans' ? 'bg-[#064957] text-[#00D9F5] border border-[#00D9F5]/40 shadow-[0_0_10px_rgba(0,217,245,0.2)]' : 'text-[#4DD6A8]/70 hover:text-white hover:bg-[#042B22]'
                 }`}
               >
                 <i className="fas fa-cubes w-4 text-center"></i> Gói sử dụng
               </button>
               <button
                 onClick={() => switchTab('sepay')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap ${
-                  activeTab === 'sepay' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap cursor-pointer ${
+                  activeTab === 'sepay' ? 'bg-[#064957] text-[#00D9F5] border border-[#00D9F5]/40 shadow-[0_0_10px_rgba(0,217,245,0.2)]' : 'text-[#4DD6A8]/70 hover:text-white hover:bg-[#042B22]'
                 }`}
               >
                 <i className="fas fa-wallet w-4 text-center"></i> Cài đặt SePay
               </button>
               <button
                 onClick={() => switchTab('trial')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap ${
-                  activeTab === 'trial' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap cursor-pointer ${
+                  activeTab === 'trial' ? 'bg-[#064957] text-[#00D9F5] border border-[#00D9F5]/40 shadow-[0_0_10px_rgba(0,217,245,0.2)]' : 'text-[#4DD6A8]/70 hover:text-white hover:bg-[#042B22]'
                 }`}
               >
                 <i className="fas fa-clock w-4 text-center"></i> Cài đặt Dùng thử
               </button>
               <button
                 onClick={() => switchTab('email')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap ${
-                  activeTab === 'email' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap cursor-pointer ${
+                  activeTab === 'email' ? 'bg-[#064957] text-[#00D9F5] border border-[#00D9F5]/40 shadow-[0_0_10px_rgba(0,217,245,0.2)]' : 'text-[#4DD6A8]/70 hover:text-white hover:bg-[#042B22]'
                 }`}
               >
                 <i className="fas fa-envelope w-4 text-center"></i> Cấu hình Email SMTP
               </button>
               <button
                 onClick={() => switchTab('orders')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap ${
-                  activeTab === 'orders' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap cursor-pointer ${
+                  activeTab === 'orders' ? 'bg-[#064957] text-[#00D9F5] border border-[#00D9F5]/40 shadow-[0_0_10px_rgba(0,217,245,0.2)]' : 'text-[#4DD6A8]/70 hover:text-white hover:bg-[#042B22]'
                 }`}
               >
                 <i className="fas fa-receipt w-4 text-center"></i> Đơn hàng
               </button>
               <button
                 onClick={() => switchTab('webhooks')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap ${
-                  activeTab === 'webhooks' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap cursor-pointer ${
+                  activeTab === 'webhooks' ? 'bg-[#064957] text-[#00D9F5] border border-[#00D9F5]/40 shadow-[0_0_10px_rgba(0,217,245,0.2)]' : 'text-[#4DD6A8]/70 hover:text-white hover:bg-[#042B22]'
                 }`}
               >
                 <i className="fas fa-bolt w-4 text-center"></i> Webhook Logs
               </button>
               <button
                 onClick={() => switchTab('active_users')}
-                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap ${
-                  activeTab === 'active_users' ? 'bg-blue-600 text-white shadow-md' : 'text-slate-400 hover:text-white hover:bg-slate-800/60'
+                className={`w-full flex items-center gap-3 px-3.5 py-2.5 rounded-xl text-xs font-bold transition-all text-left whitespace-nowrap cursor-pointer ${
+                  activeTab === 'active_users' ? 'bg-[#064957] text-[#00D9F5] border border-[#00D9F5]/40 shadow-[0_0_10px_rgba(0,217,245,0.2)]' : 'text-[#4DD6A8]/70 hover:text-white hover:bg-[#042B22]'
                 }`}
               >
                 <i className="fas fa-users-cog w-4 text-center"></i> Người dùng Active

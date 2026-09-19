@@ -173,19 +173,19 @@ export const TrialModal: React.FC<TrialModalProps> = ({
   };
 
   return (
-    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-slate-950/75 backdrop-blur-sm p-4 overflow-y-auto animate-in fade-in duration-200">
-      <div className="relative w-full max-w-lg bg-white rounded-3xl shadow-2xl border border-slate-200 overflow-hidden my-6">
+    <div className="fixed inset-0 z-[100] flex items-center justify-center bg-[#031A12]/80 backdrop-blur-md p-4 overflow-y-auto animate-in fade-in duration-200">
+      <div className="relative w-full max-w-lg bg-[#FCFDFC] rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.5)] border border-[#D8E2E8] overflow-hidden my-6">
         
-        {/* Header */}
-        <div className="bg-gradient-to-r from-emerald-700 via-teal-700 to-green-700 px-6 sm:px-8 py-5 text-white flex items-center justify-between">
+        {/* Header - Thanh đầu trang: xanh đen pha lục, khoảng #06251A, có đường viền xanh lá mảnh */}
+        <div className="bg-[#06251A] border-b border-[#12D96B]/30 px-6 sm:px-8 py-5 text-white flex items-center justify-between">
           <div>
-            <span className="bg-white/20 text-white text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
+            <span className="bg-[#042B22] text-[#4DD6A8] border border-[#05C7A5]/50 text-[10px] font-black px-2.5 py-0.5 rounded-full uppercase tracking-wider">
               Miễn phí 100%
             </span>
-            <h3 className="text-lg sm:text-xl font-black mt-1">
+            <h3 className="text-lg sm:text-xl font-black mt-1 text-white">
               {emailSentData ? 'Xác nhận kích hoạt dùng thử' : (trialConfig?.title || 'Đăng ký dùng thử miễn phí')}
             </h3>
-            <p className="text-emerald-100 text-xs mt-0.5">
+            <p className="text-[#4DD6A8]/80 text-xs mt-0.5">
               {emailSentData
                 ? `Liên kết đã được gửi đến ${emailSentData.customer_email}`
                 : `Trải nghiệm ${trialConfig?.trial_hours || 24} giờ đầy đủ tính năng tạo video AI chuyên nghiệp`}
@@ -193,7 +193,7 @@ export const TrialModal: React.FC<TrialModalProps> = ({
           </div>
           <button
             onClick={onClose}
-            className="w-9 h-9 rounded-full bg-white/10 hover:bg-white/20 text-white flex items-center justify-center transition-colors cursor-pointer"
+            className="w-9 h-9 rounded-full bg-[#042B22] text-[#05C7A5] hover:text-[#00D9F5] border border-[#05C7A5]/50 flex items-center justify-center transition-colors cursor-pointer"
           >
             <i className="fas fa-times text-sm"></i>
           </button>
@@ -204,8 +204,8 @@ export const TrialModal: React.FC<TrialModalProps> = ({
           {!emailSentData ? (
             <form onSubmit={handleSubmit} className="space-y-4">
               
-              <div className="bg-emerald-50/80 border border-emerald-200/80 p-4 rounded-2xl text-xs text-emerald-900 leading-relaxed font-medium flex items-start gap-3">
-                <i className="fas fa-gift text-emerald-600 text-lg mt-0.5"></i>
+              <div className="bg-[#F3F8FA] border border-[#D8E2E8] p-4 rounded-2xl text-xs text-[#064957] leading-relaxed font-medium flex items-start gap-3 shadow-xs">
+                <i className="fas fa-gift text-[#00D9F5] text-lg mt-0.5"></i>
                 <p>
                   {trialConfig?.description || 'Điền thông tin bên dưới, hệ thống sẽ gửi liên kết kích hoạt dùng thử 24 giờ trực tiếp đến email của bạn để bắt đầu sử dụng.'}
                 </p>
@@ -219,7 +219,7 @@ export const TrialModal: React.FC<TrialModalProps> = ({
               )}
 
               <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1.5">
+                <label className="block text-xs font-black uppercase tracking-wider text-[#064957] mb-1.5">
                   Họ và tên <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -228,12 +228,12 @@ export const TrialModal: React.FC<TrialModalProps> = ({
                   placeholder="Ví dụ: Trần Văn Nam"
                   value={customerName}
                   onChange={(e) => setCustomerName(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold"
+                  className="w-full bg-white border border-[#D8E2E8] rounded-xl px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#05C7A5] focus:ring-2 focus:ring-[#05C7A5]/20 transition-all font-semibold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1.5">
+                <label className="block text-xs font-black uppercase tracking-wider text-[#064957] mb-1.5">
                   Địa chỉ Email nhận link kích hoạt <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -242,7 +242,7 @@ export const TrialModal: React.FC<TrialModalProps> = ({
                   placeholder="name@gmail.com"
                   value={customerEmail}
                   onChange={(e) => setCustomerEmail(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold"
+                  className="w-full bg-white border border-[#D8E2E8] rounded-xl px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#05C7A5] focus:ring-2 focus:ring-[#05C7A5]/20 transition-all font-semibold"
                 />
                 <span className="text-[10px] text-slate-500 mt-1 block">
                   Link dùng thử sẽ được gửi đến email này để bạn kích hoạt và mở tính năng
@@ -250,7 +250,7 @@ export const TrialModal: React.FC<TrialModalProps> = ({
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1.5">
+                <label className="block text-xs font-black uppercase tracking-wider text-[#064957] mb-1.5">
                   Số điện thoại <span className="text-rose-500">*</span>
                 </label>
                 <input
@@ -259,12 +259,12 @@ export const TrialModal: React.FC<TrialModalProps> = ({
                   placeholder="0987654321"
                   value={customerPhone}
                   onChange={(e) => setCustomerPhone(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-3 text-sm text-slate-900 outline-none focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all font-semibold"
+                  className="w-full bg-white border border-[#D8E2E8] rounded-xl px-4 py-3 text-sm text-slate-900 outline-none focus:border-[#05C7A5] focus:ring-2 focus:ring-[#05C7A5]/20 transition-all font-semibold"
                 />
               </div>
 
               <div>
-                <label className="block text-xs font-black uppercase tracking-wider text-slate-700 mb-1.5">
+                <label className="block text-xs font-black uppercase tracking-wider text-[#064957] mb-1.5">
                   Ghi chú (Tùy chọn)
                 </label>
                 <input
@@ -272,23 +272,24 @@ export const TrialModal: React.FC<TrialModalProps> = ({
                   placeholder="Ví dụ: Mong muốn tìm hiểu về kênh YouTube..."
                   value={note}
                   onChange={(e) => setNote(e.target.value)}
-                  className="w-full bg-slate-50 border border-slate-300 rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:bg-white focus:border-emerald-600 focus:ring-2 focus:ring-emerald-100 transition-all"
+                  className="w-full bg-white border border-[#D8E2E8] rounded-xl px-4 py-2.5 text-sm text-slate-900 outline-none focus:border-[#05C7A5] focus:ring-2 focus:ring-[#05C7A5]/20 transition-all"
                 />
               </div>
 
               <div className="pt-3">
+                {/* Nút trải nghiệm: Xanh navy pha lục đậm #064957, Viền và biểu tượng nút trải nghiệm: Xanh cyan sáng #00D9F5 */}
                 <button
                   type="submit"
                   disabled={loading}
-                  className="w-full py-4 rounded-2xl bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 disabled:opacity-50 text-white font-black text-sm sm:text-base shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                  className="w-full py-4 rounded-2xl bg-[#064957] hover:bg-[#085a6b] text-white border-2 border-[#00D9F5] font-black text-sm sm:text-base shadow-[0_0_14px_rgba(0,217,245,0.28)] hover:shadow-[0_0_20px_rgba(0,217,245,0.45)] transition-all flex items-center justify-center gap-2 cursor-pointer active:scale-98 disabled:opacity-50"
                 >
                   {loading ? (
                     <>
-                      <i className="fas fa-spinner fa-spin"></i> Đang gửi link đến email...
+                      <i className="fas fa-spinner fa-spin text-[#00D9F5]"></i> Đang gửi link đến email...
                     </>
                   ) : (
                     <>
-                      Bắt đầu dùng thử <i className="fas fa-paper-plane text-emerald-200"></i>
+                      Bắt đầu dùng thử <i className="fas fa-paper-plane text-[#00D9F5]"></i>
                     </>
                   )}
                 </button>
@@ -299,16 +300,16 @@ export const TrialModal: React.FC<TrialModalProps> = ({
               
               {/* Mail Icon with animated ring */}
               <div className="text-center pt-2">
-                <div className="w-18 h-18 rounded-full bg-emerald-100 text-emerald-600 text-3xl flex items-center justify-center mx-auto shadow-md ring-8 ring-emerald-50">
+                <div className="w-18 h-18 rounded-full bg-[#064957] text-[#00D9F5] border-2 border-[#00D9F5] text-3xl flex items-center justify-center mx-auto shadow-md ring-8 ring-[#05C7A5]/20">
                   <i className="fas fa-envelope-open-text"></i>
                 </div>
-                <h4 className="text-xl sm:text-2xl font-black text-slate-900 mt-4">
+                <h4 className="text-xl sm:text-2xl font-black text-[#031A12] mt-4">
                   Đã gửi link kích hoạt đến email!
                 </h4>
                 <p className="text-slate-600 text-xs sm:text-sm mt-1.5">
                   Hệ thống đã gửi liên kết dùng thử <strong>{emailSentData.trial_hours} giờ</strong> đến địa chỉ:
                 </p>
-                <div className="mt-2 inline-block bg-emerald-50 border border-emerald-300 text-emerald-900 font-mono font-bold text-xs sm:text-sm px-4 py-1.5 rounded-xl shadow-xs">
+                <div className="mt-2 inline-block bg-[#F3F8FA] border border-[#D8E2E8] text-[#064957] font-mono font-bold text-xs sm:text-sm px-4 py-1.5 rounded-xl shadow-xs">
                   {emailSentData.customer_email}
                 </div>
               </div>
@@ -351,9 +352,9 @@ export const TrialModal: React.FC<TrialModalProps> = ({
                   )}
                 </div>
               ) : (
-                <div className="bg-slate-50 border border-slate-200 rounded-2xl p-4 text-xs space-y-2.5 text-slate-700">
-                  <div className="font-bold text-slate-900 flex items-center gap-2">
-                    <i className="fas fa-info-circle text-emerald-600"></i>
+                <div className="bg-[#F3F8FA] border border-[#D8E2E8] rounded-2xl p-4 text-xs space-y-2.5 text-slate-700">
+                  <div className="font-bold text-[#064957] flex items-center gap-2">
+                    <i className="fas fa-info-circle text-[#00D9F5]"></i>
                     Cách mở tính năng dùng thử:
                   </div>
                   <ol className="list-decimal pl-5 space-y-1.5 leading-relaxed text-slate-600">
@@ -365,8 +366,8 @@ export const TrialModal: React.FC<TrialModalProps> = ({
               )}
 
               {resendSuccess && (
-                <div className="bg-emerald-50 border border-emerald-300 text-emerald-800 p-3 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
-                  <i className="fas fa-check-circle text-emerald-600"></i>
+                <div className="bg-[#F3F8FA] border border-[#05C7A5] text-[#064957] p-3 rounded-xl text-xs font-bold flex items-center gap-2 animate-in fade-in">
+                  <i className="fas fa-check-circle text-[#05C7A5]"></i>
                   Đã gửi lại link kích hoạt thành công đến email của bạn!
                 </div>
               )}
@@ -382,20 +383,20 @@ export const TrialModal: React.FC<TrialModalProps> = ({
               <div className="space-y-2.5 pt-2">
                 {emailSentData.simulated ? (
                   <>
-                    {/* Primary Button in Simulation Mode: Direct Activate */}
+                    {/* Primary Button: Nút trải nghiệm */}
                     <button
                       type="button"
                       onClick={handleDirectActivate}
                       disabled={activating}
-                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-3.5 rounded-2xl bg-[#064957] hover:bg-[#085a6b] text-white border-2 border-[#00D9F5] font-bold text-sm shadow-[0_0_14px_rgba(0,217,245,0.28)] transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
                       {activating ? (
                         <>
-                          <i className="fas fa-spinner fa-spin"></i> Đang kích hoạt tài khoản...
+                          <i className="fas fa-spinner fa-spin text-[#00D9F5]"></i> Đang kích hoạt tài khoản...
                         </>
                       ) : (
                         <>
-                          <i className="fas fa-bolt text-amber-300"></i> Kích hoạt dùng thử ngay (Bắt đầu 24h)
+                          <i className="fas fa-bolt text-[#00D9F5]"></i> Kích hoạt dùng thử ngay (Bắt đầu 24h)
                         </>
                       )}
                     </button>
@@ -404,39 +405,37 @@ export const TrialModal: React.FC<TrialModalProps> = ({
                       href={getEmailInboxUrl(emailSentData.customer_email)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full py-3 rounded-2xl bg-slate-100 hover:bg-slate-200 border border-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-3 rounded-2xl bg-white hover:bg-[#F3F8FA] border border-[#D8E2E8] text-[#064957] font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                     >
-                      <i className="fas fa-external-link-alt text-xs text-blue-600"></i>
+                      <i className="fas fa-external-link-alt text-xs text-[#00D9F5]"></i>
                       Mở hộp thư Email ({emailSentData.customer_email})
                     </a>
                   </>
                 ) : (
                   <>
-                    {/* Primary Button in Real SMTP Mode: Open Email */}
                     <a
                       href={getEmailInboxUrl(emailSentData.customer_email)}
                       target="_blank"
                       rel="noopener noreferrer"
-                      className="w-full py-3.5 rounded-2xl bg-gradient-to-r from-emerald-600 via-green-600 to-teal-600 hover:from-emerald-700 hover:to-teal-700 text-white font-bold text-sm shadow-md hover:shadow-lg transition-all flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-3.5 rounded-2xl bg-[#064957] hover:bg-[#085a6b] text-white border-2 border-[#00D9F5] font-bold text-sm shadow-[0_0_14px_rgba(0,217,245,0.28)] transition-all flex items-center justify-center gap-2 cursor-pointer"
                     >
-                      <i className="fas fa-external-link-alt text-xs"></i>
+                      <i className="fas fa-external-link-alt text-xs text-[#00D9F5]"></i>
                       Mở hộp thư Email ngay
                     </a>
 
-                    {/* Direct quick activate button (convenience fallback) */}
                     <button
                       type="button"
                       onClick={handleDirectActivate}
                       disabled={activating}
-                      className="w-full py-3 rounded-2xl bg-slate-100 hover:bg-emerald-50 hover:text-emerald-700 border border-slate-200 text-slate-700 font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer"
+                      className="w-full py-3 rounded-2xl bg-white hover:bg-[#F3F8FA] border border-[#D8E2E8] text-[#064957] font-bold text-xs transition-colors flex items-center justify-center gap-2 cursor-pointer shadow-xs"
                     >
                       {activating ? (
                         <>
-                          <i className="fas fa-spinner fa-spin"></i> Đang kích hoạt...
+                          <i className="fas fa-spinner fa-spin text-[#00D9F5]"></i> Đang kích hoạt...
                         </>
                       ) : (
                         <>
-                          <i className="fas fa-bolt text-amber-500"></i> Kích hoạt ngay tại trình duyệt này (Thử nghiệm nhanh)
+                          <i className="fas fa-bolt text-[#05C7A5]"></i> Kích hoạt ngay tại trình duyệt này (Thử nghiệm nhanh)
                         </>
                       )}
                     </button>
@@ -445,12 +444,12 @@ export const TrialModal: React.FC<TrialModalProps> = ({
               </div>
 
               {/* Resend link */}
-              <div className="text-center pt-1 border-t border-slate-100">
+              <div className="text-center pt-1 border-t border-[#D8E2E8]">
                 <button
                   type="button"
                   onClick={handleResend}
                   disabled={resending}
-                  className="text-xs text-slate-500 hover:text-emerald-700 font-semibold inline-flex items-center gap-1.5 cursor-pointer"
+                  className="text-xs text-slate-500 hover:text-[#05C7A5] font-semibold inline-flex items-center gap-1.5 cursor-pointer"
                 >
                   {resending ? (
                     <i className="fas fa-spinner fa-spin"></i>
