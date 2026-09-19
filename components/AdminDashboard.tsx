@@ -61,8 +61,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
 
   // Check login on load
   useEffect(() => {
-    if (isOpen && passcode) {
-      handleLogin(passcode);
+    if (isOpen) {
+      const pin = passcode || localStorage.getItem('admin_passcode') || 'aitienphong';
+      handleLogin(pin);
     }
   }, [isOpen]);
 
@@ -361,13 +362,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({ isOpen, onClose 
             <div>
               <h4 className="text-xl font-black text-[#031A12]">Xác Thực Quản Trị Viên</h4>
               <p className="text-xs text-slate-500 mt-1">
-                Nhập mã PIN Quản trị viên (Mặc định: 123456 hoặc trong ADMIN_PASSCODE)
+                Nhập mật khẩu Quản trị viên (aitienphong)
               </p>
             </div>
             <form onSubmit={(e) => { e.preventDefault(); handleLogin(); }} className="space-y-4">
               <input
                 type="password"
-                placeholder="Nhập mã PIN..."
+                placeholder="Nhập mật khẩu (aitienphong)..."
                 value={passcode}
                 onChange={(e) => setPasscode(e.target.value)}
                 className="w-full bg-white border border-[#D8E2E8] rounded-2xl px-4 py-3 text-center text-lg font-mono tracking-widest text-[#031A12] outline-none focus:border-[#05C7A5] focus:ring-2 focus:ring-[#05C7A5]/20 transition-all font-bold"

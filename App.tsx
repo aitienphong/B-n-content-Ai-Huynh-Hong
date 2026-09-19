@@ -68,6 +68,28 @@ export default function App() {
   const [isPaymentOpen, setIsPaymentOpen] = useState(false);
   const [isTrialOpen, setIsTrialOpen] = useState(false);
   const [isAdminOpen, setIsAdminOpen] = useState(false);
+  const [isSettingAuthModalOpen, setIsSettingAuthModalOpen] = useState(false);
+  const [settingPasswordInput, setSettingPasswordInput] = useState('');
+  const [settingPasswordError, setSettingPasswordError] = useState('');
+
+  const handleOpenSetting = () => {
+    setSettingPasswordInput('');
+    setSettingPasswordError('');
+    setIsSettingAuthModalOpen(true);
+  };
+
+  const handleVerifySettingPassword = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (settingPasswordInput.trim() === 'aitienphong') {
+      localStorage.setItem('admin_passcode', 'aitienphong');
+      setIsSettingAuthModalOpen(false);
+      setSettingPasswordInput('');
+      setSettingPasswordError('');
+      setIsAdminOpen(true);
+    } else {
+      setSettingPasswordError('Mật khẩu không chính xác. Vui lòng nhập đúng "aitienphong"');
+    }
+  };
   
   const [hasActiveSubscription, setHasActiveSubscription] = useState(false);
   const [subscription, setSubscription] = useState<any>(null);
@@ -413,15 +435,15 @@ export default function App() {
               </div>
             </div>
 
-            {/* Mobile quick indicators - Nút cài đặt */}
+            {/* Mobile quick indicators - Nút cài đặt (Setting) */}
             <div className="md:hidden flex items-center gap-1.5">
               <button
                 type="button"
-                onClick={() => setIsAdminOpen(true)}
-                className="w-8 h-8 rounded-xl bg-[#042B22] text-[#05C7A5] hover:text-[#00D9F5] border border-[#05C7A5]/60 flex items-center justify-center text-xs"
-                title="Quản trị viên"
+                onClick={handleOpenSetting}
+                className="w-8 h-8 rounded-xl bg-[#042B22] text-[#05C7A5] hover:text-[#00D9F5] border border-[#05C7A5]/60 flex items-center justify-center text-xs transition-colors cursor-pointer"
+                title="Cài đặt (Setting)"
               >
-                <i className="fas fa-shield-alt text-[#05C7A5]"></i>
+                <i className="fas fa-cog text-[#05C7A5]"></i>
               </button>
             </div>
           </div>
@@ -473,14 +495,14 @@ export default function App() {
               <span>{hasActiveSubscription && subscription?.subscription_type === 'paid' ? 'Gia hạn gói' : 'Mua Gói / Nâng Cấp'}</span>
             </button>
 
-            {/* Nút cài đặt (Desktop) */}
+            {/* Nút cài đặt (Setting) (Desktop) */}
             <button
               type="button"
-              onClick={() => setIsAdminOpen(true)}
+              onClick={handleOpenSetting}
               className="hidden md:flex w-9 h-9 rounded-xl bg-[#042B22]/90 hover:bg-[#042B22] text-[#05C7A5] hover:text-[#00D9F5] items-center justify-center text-xs transition-colors border border-[#05C7A5]/60 hover:border-[#05C7A5] shadow-[0_0_10px_rgba(5,199,165,0.2)] cursor-pointer"
-              title="Mở Quản trị viên SePay"
+              title="Cài đặt (Setting)"
             >
-              <i className="fas fa-shield-alt text-[#05C7A5]"></i>
+              <i className="fas fa-cog text-[#05C7A5]"></i>
             </button>
 
           </div>
@@ -1063,6 +1085,85 @@ export default function App() {
           app_redirect_url: paymentConfig.trial_app_redirect_url || ''
         }}
       />
+
+      {/* MODAL XÁC THỰC MẬT KHẨU CÀI ĐẶT (SETTING) */}
+      {isSettingAuthModalOpen && (
+        <div className="fixed inset-0 z-[110] flex items-center justify-center bg-[#031A12]/85 backdrop-blur-md p-4 animate-in fade-in duration-200 font-['Plus_Jakarta_Sans',sans-serif]">
+          <div className="relative w-full max-w-sm bg-[#FCFDFC] rounded-3xl shadow-[0_25px_60px_rgba(0,0,0,0.55)] border border-[#D8E2E8] overflow-hidden my-auto">
+            {/* Header */}
+            <div className="bg-[#06251A] border-b border-[#12D96B]/30 px-6 py-4 text-white flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <i className="fas fa-cog text-[#00D9F5]"></i>
+                <h3 className="font-black text-base text-white">Cài Đặt (Setting)</h3>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setIsSettingAuthModalOpen(false);
+                  setSettingPasswordInput('');
+                  setSettingPasswordError('');
+                }}
+                className="w-8 h-8 rounded-full bg-[#042B22] text-[#05C7A5] hover:text-[#00D9F5] border border-[#05C7A5]/50 flex items-center justify-center transition-colors cursor-pointer"
+              >
+                <i className="fas fa-times text-xs"></i>
+              </button>
+            </div>
+
+            {/* Form */}
+            <form onSubmit={handleVerifySettingPassword} className="p-6 space-y-4">
+              <div className="text-center">
+                <div className="w-14 h-14 rounded-2xl bg-[#064957] text-[#00D9F5] border-2 border-[#00D9F5] flex items-center justify-center text-2xl mx-auto shadow-[0_0_12px_rgba(0,217,245,0.25)] mb-3">
+                  <i className="fas fa-lock"></i>
+                </div>
+                <h4 className="text-base font-black text-[#031A12]">Xác Thực Quyền Truy Cập</h4>
+                <p className="text-xs text-slate-500 mt-1">
+                  Vui lòng nhập mật khẩu để mở bảng điều khiển Cài đặt
+                </p>
+              </div>
+
+              <div>
+                <input
+                  type="password"
+                  autoFocus
+                  placeholder="Nhập mật khẩu..."
+                  value={settingPasswordInput}
+                  onChange={(e) => {
+                    setSettingPasswordInput(e.target.value);
+                    if (settingPasswordError) setSettingPasswordError('');
+                  }}
+                  className="w-full bg-white border border-[#D8E2E8] rounded-xl px-4 py-3 text-center text-sm font-semibold tracking-wider text-slate-900 outline-none focus:border-[#05C7A5] focus:ring-2 focus:ring-[#05C7A5]/20 transition-all"
+                />
+                {settingPasswordError && (
+                  <p className="text-xs text-rose-600 font-bold mt-2 text-center flex items-center justify-center gap-1">
+                    <i className="fas fa-exclamation-triangle"></i>
+                    {settingPasswordError}
+                  </p>
+                )}
+              </div>
+
+              <div className="flex gap-2.5 pt-1">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsSettingAuthModalOpen(false);
+                    setSettingPasswordInput('');
+                    setSettingPasswordError('');
+                  }}
+                  className="flex-1 py-3 rounded-xl border border-[#D8E2E8] text-[#064957] font-bold text-xs hover:bg-[#F3F8FA] transition-colors cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="flex-1 py-3 rounded-xl bg-[#064957] hover:bg-[#085a6b] text-white border-2 border-[#00D9F5] font-black text-xs shadow-[0_0_12px_rgba(0,217,245,0.25)] transition-all cursor-pointer"
+                >
+                  Mở Setting
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
 
       <AdminDashboard
         isOpen={isAdminOpen}
