@@ -1,8 +1,6 @@
 {
-  "name": "VIDEO AI BÁN CONTENT - HUYNH HONG",
-  "description": "Ứng dụng tạo timeline chi tiết và prompt cho video AI - VIDEO AI BÁN CONTENT - HUYNH HONG",
+  "name": "Review Sản Phẩm Tại Xưởng Huynh Hong",
+  "description": "Kịch Bản Review Sản Phẩm Tại Xưởng Làm Affiliate - Bộ Prompt Video, Prompt Ảnh, File Phụ đề .SRT và Kịch bản lời thoại chuẩn bối cảnh nhà máy cho Affiliate E-Commerce.",
   "requestFramePermissions": [],
-  "majorCapabilities": [
-    "MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"
-  ]
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
