@@ -2,7 +2,11 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import crypto from 'node:crypto';
+import { createRequire } from 'node:module';
 import { GoogleGenAI, Type } from '@google/genai';
+
+const require = createRequire(import.meta.url);
+const archiver = require('archiver');
 import { query, queryOne, initDatabase, isDatabaseConfigured } from './server/db.js';
 import {
   sendTrialActivationEmail,
@@ -29,10 +33,10 @@ async function getSepaySettings() {
     const settings = await queryOne<any>('SELECT * FROM sepay_settings WHERE id = $1', ['default']);
     if (!settings) {
       return {
-        bank_name: 'MBBank',
-        bank_code: 'MB',
-        account_number: '0988888888',
-        account_holder: 'HUYNH HONG',
+        bank_name: 'vpbank',
+        bank_code: 'VPB',
+        account_number: '0939969127',
+        account_holder: 'HUYNH THI THU HONG',
         api_key: process.env.SEPAY_API_KEY || '',
         webhook_secret: process.env.SEPAY_WEBHOOK_SECRET || '',
         order_prefix: 'AFF',
@@ -136,15 +140,7 @@ async function checkUserSubscription(identifier: string) {
 // 0. Health Check Endpoint (Required for Vercel/Monitoring)
 app.get('/api/health', async (req, res) => {
   try {
-    if (!isDatabaseConfigured()) {
-      return res.status(503).json({
-        success: false,
-        database: 'disconnected',
-        message: 'DATABASE_URL environment variable is not configured'
-      });
-    }
-
-    // Ping PostgreSQL
+    // Ping Database (Remote PostgreSQL or Local Persistent Store)
     await query('SELECT 1 as ok');
 
     return res.json({
@@ -154,7 +150,8 @@ app.get('/api/health', async (req, res) => {
   } catch (err: any) {
     return res.status(500).json({
       success: false,
-      database: 'error'
+      database: 'error',
+      message: err.message
     });
   }
 });
@@ -1647,6 +1644,52 @@ app.post('/api/admin/clear-test-data', verifyAdmin, async (req, res) => {
     });
   } catch (err: any) {
     res.status(500).json({ error: err.message });
+  }
+});
+
+// Admin Export Source Code as ZIP
+app.get('/api/admin/export-zip', verifyAdmin, async (req, res) => {
+  try {
+    const archive =
+      typeof archiver === 'function'
+        ? (archiver as any)('zip', { zlib: { level: 9 } })
+        : new archiver.ZipArchive({ zlib: { level: 9 } });
+
+    const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+    const filename = `source-code-${timestamp}.zip`;
+
+    res.setHeader('Content-Type', 'application/zip');
+    res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
+
+    archive.on('error', (err: any) => {
+      console.error('[Export ZIP] Archive error:', err);
+      if (!res.headersSent) {
+        res.status(500).json({ error: 'Lỗi nén file ZIP: ' + err.message });
+      }
+    });
+
+    archive.pipe(res);
+
+    archive.glob('**/*', {
+      cwd: process.cwd(),
+      ignore: [
+        'node_modules/**',
+        'dist/**',
+        '.git/**',
+        '.cache/**',
+        '.vite/**',
+        '**/*.tmp',
+        '**/*.zip'
+      ],
+      dot: true
+    });
+
+    await archive.finalize();
+  } catch (err: any) {
+    console.error('[Export ZIP] Error:', err);
+    if (!res.headersSent) {
+      res.status(500).json({ error: 'Lỗi xuất file ZIP: ' + err.message });
+    }
   }
 });
 
