@@ -2,11 +2,9 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import { createRequire } from 'node:module';
+import archiver from 'archiver';
 import { GoogleGenAI, Type } from '@google/genai';
 
-const require = createRequire(import.meta.url);
-const archiver = require('archiver');
 import { query, queryOne, initDatabase, isDatabaseConfigured } from './server/db.js';
 import {
   sendTrialActivationEmail,
