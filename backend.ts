@@ -2,7 +2,7 @@ import express from 'express';
 import cors from 'cors';
 import path from 'node:path';
 import crypto from 'node:crypto';
-import archiver from 'archiver';
+import { ZipArchive } from 'archiver';
 import { GoogleGenAI, Type } from '@google/genai';
 
 import { query, queryOne, initDatabase, isDatabaseConfigured } from './server/db.js';
@@ -1648,11 +1648,7 @@ app.post('/api/admin/clear-test-data', verifyAdmin, async (req, res) => {
 // Admin Export Source Code as ZIP
 app.get('/api/admin/export-zip', verifyAdmin, async (req, res) => {
   try {
-    const archive =
-      typeof archiver === 'function'
-        ? (archiver as any)('zip', { zlib: { level: 9 } })
-        : new archiver.ZipArchive({ zlib: { level: 9 } });
-
+   const archive = new ZipArchive({ zlib: { level: 9 } });
     const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
     const filename = `source-code-${timestamp}.zip`;
 
