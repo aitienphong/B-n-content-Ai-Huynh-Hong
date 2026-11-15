@@ -127,6 +127,7 @@ export default function App() {
 
   // Check user subscription status from backend
   const checkSubscription = useCallback(async () => {
+    const urlEmail = new URLSearchParams(window.location.search).get('email'); if (urlEmail) { localStorage.setItem('app_user_session', JSON.stringify({ email: urlEmail.trim().toLowerCase() })); window.history.replaceState({}, document.title, window.location.pathname); }
     const sessionStr = localStorage.getItem('app_user_session');
     if (!sessionStr) {
       setSubscription(null);
